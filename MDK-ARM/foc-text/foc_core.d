@@ -1,0 +1,9 @@
+foc-text\foc_core.o: ..\foc\core\foc_core.c
+foc-text\foc_core.o: ..\foc\core\foc_core.h
+foc-text\foc_core.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+foc-text\foc_core.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+foc-text\foc_core.o: ../foc/alg/clarke_park.h
+foc-text\foc_core.o: ../foc/alg/svpwm.h
+foc-text\foc_core.o: ../foc/alg/pi.h
+foc-text\foc_core.o: ../foc/hal/foc_hal.h
+foc-text\foc_core.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
