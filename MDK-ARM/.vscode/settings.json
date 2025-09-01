@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "random": "c",
-        "stm32f4xx_hal.h": "c"
+        "stm32f4xx_hal.h": "c",
+        "foc_core.h": "c",
+        "lcd_init.h": "c",
+        "serial.h": "c",
+        "as5600.h": "c"
     }
 }

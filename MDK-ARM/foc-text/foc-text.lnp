@@ -38,11 +38,7 @@
 "foc-text\lcd.o"
 "foc-text\lcd_init.o"
 "foc-text\serial.o"
-"foc-text\clarke_park.o"
-"foc-text\pi.o"
-"foc-text\svpwm.o"
-"foc-text\foc_core.o"
-"foc-text\foc_hal_stm32.o"
+"foc-text\simplefoc.o"
 --library_type=microlib --strict --scatter "foc-text\foc-text.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

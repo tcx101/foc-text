@@ -37,10 +37,3 @@ foc-text\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h
 foc-text\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
 foc-text\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
 foc-text\stm32f4xx_it.o: ../Core/Inc/stm32f4xx_it.h
-foc-text\stm32f4xx_it.o: ../foc/core/foc_core.h
-foc-text\stm32f4xx_it.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
-foc-text\stm32f4xx_it.o: ../foc/alg/clarke_park.h
-foc-text\stm32f4xx_it.o: ../foc/alg/svpwm.h
-foc-text\stm32f4xx_it.o: ../foc/alg/pi.h
-foc-text\stm32f4xx_it.o: ../foc/hal/foc_hal.h
-foc-text\stm32f4xx_it.o: ../hardware/as5600.h

@@ -22,8 +22,7 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "foc_core.h"
-#include "as5600.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -64,7 +63,7 @@ extern ADC_HandleTypeDef hadc2;
 extern ADC_HandleTypeDef hadc3;
 extern I2C_HandleTypeDef hi2c1;
 extern I2C_HandleTypeDef hi2c3;
-extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim5;
 extern DMA_HandleTypeDef hdma_uart4_rx;
 extern DMA_HandleTypeDef hdma_uart4_tx;
 extern UART_HandleTypeDef huart4;
@@ -256,20 +255,6 @@ void ADC_IRQHandler(void)
 }
 
 /**
-  * @brief This function handles TIM3 global interrupt.
-  */
-void TIM3_IRQHandler(void)
-{
-  /* USER CODE BEGIN TIM3_IRQn 0 */
-
-  /* USER CODE END TIM3_IRQn 0 */
-  HAL_TIM_IRQHandler(&htim3);
-  /* USER CODE BEGIN TIM3_IRQn 1 */
-
-  /* USER CODE END TIM3_IRQn 1 */
-}
-
-/**
   * @brief This function handles I2C1 event interrupt.
   */
 void I2C1_EV_IRQHandler(void)
@@ -295,6 +280,20 @@ void I2C1_ER_IRQHandler(void)
   /* USER CODE BEGIN I2C1_ER_IRQn 1 */
 
   /* USER CODE END I2C1_ER_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM5 global interrupt.
+  */
+void TIM5_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM5_IRQn 0 */
+
+  /* USER CODE END TIM5_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim5);
+  /* USER CODE BEGIN TIM5_IRQn 1 */
+
+  /* USER CODE END TIM5_IRQn 1 */
 }
 
 /**

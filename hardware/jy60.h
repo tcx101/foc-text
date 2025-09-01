@@ -2,7 +2,6 @@
 #define __jy60_H
 #include "stm32f4xx_hal.h"
 #include "usart.h"
-
 #include "stm32f4xx_hal.h"  /* 如使用其他系列，请替换为对应 HAL 头文件 */
 #include <stdbool.h>
 #include <stdint.h>

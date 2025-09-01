@@ -666,22 +666,10 @@ void LCD_ShowSignedNum2(uint16_t x,uint16_t y,int16_t num,uint8_t len,uint16_t f
       返回值：  ?
 ******************************************************************************/
 void LCD_ShowFloatNum1(uint16_t x,uint16_t y,float num,uint8_t len,uint16_t fc,uint16_t bc,uint8_t sizey)
-{         	
-	uint8_t t,temp,sizex;
-	uint16_t num1;
-	sizex=sizey/2;
-	num1=num*100;
-	for(t=0;t<len;t++)
-	{
-		temp=(num1/mypow(10,len-t-1))%10;
-		if(t==(len-2))
-		{
-			LCD_ShowChar(x+(len-2)*sizex,y,'.',fc,bc,sizey,0);
-			t++;
-			len+=1;
-		}
-	 	LCD_ShowChar(x+t*sizex,y,temp+48,fc,bc,sizey,0);
-	}
+{
+    char buffer[20];
+    snprintf(buffer, sizeof(buffer), "%.2f", num);
+    LCD_ShowString(x, y, (uint8_t*)buffer, fc, bc, sizey, 0);
 }
 
 

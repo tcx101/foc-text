@@ -97,14 +97,14 @@ void MX_ADC2_Init(void)
   hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc2.Init.Resolution = ADC_RESOLUTION_12B;
   hadc2.Init.ScanConvMode = ENABLE;
-  hadc2.Init.ContinuousConvMode = ENABLE;
+  hadc2.Init.ContinuousConvMode = DISABLE;
   hadc2.Init.DiscontinuousConvMode = DISABLE;
   hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
-  hadc2.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T2_TRGO;
+  hadc2.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T2_CC4;
   hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc2.Init.NbrOfConversion = 2;
   hadc2.Init.DMAContinuousRequests = ENABLE;
-  hadc2.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+  hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc2) != HAL_OK)
   {
     Error_Handler();
@@ -114,7 +114,7 @@ void MX_ADC2_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_5;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_56CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_84CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -153,14 +153,14 @@ void MX_ADC3_Init(void)
   hadc3.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc3.Init.Resolution = ADC_RESOLUTION_12B;
   hadc3.Init.ScanConvMode = ENABLE;
-  hadc3.Init.ContinuousConvMode = ENABLE;
+  hadc3.Init.ContinuousConvMode = DISABLE;
   hadc3.Init.DiscontinuousConvMode = DISABLE;
   hadc3.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
-  hadc3.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T8_TRGO;
+  hadc3.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T4_CC4;
   hadc3.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc3.Init.NbrOfConversion = 2;
   hadc3.Init.DMAContinuousRequests = ENABLE;
-  hadc3.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+  hadc3.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   if (HAL_ADC_Init(&hadc3) != HAL_OK)
   {
     Error_Handler();
@@ -170,7 +170,7 @@ void MX_ADC3_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_10;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_56CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_84CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc3, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -212,7 +212,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
     /* ADC1 interrupt Init */
-    HAL_NVIC_SetPriority(ADC_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(ADC_IRQn, 2, 0);
     HAL_NVIC_EnableIRQ(ADC_IRQn);
   /* USER CODE BEGIN ADC1_MspInit 1 */
 
@@ -252,7 +252,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     hdma_adc2.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
     hdma_adc2.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
     hdma_adc2.Init.Mode = DMA_CIRCULAR;
-    hdma_adc2.Init.Priority = DMA_PRIORITY_HIGH;
+    hdma_adc2.Init.Priority = DMA_PRIORITY_VERY_HIGH;
     hdma_adc2.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&hdma_adc2) != HAL_OK)
     {
@@ -262,7 +262,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     __HAL_LINKDMA(adcHandle,DMA_Handle,hdma_adc2);
 
     /* ADC2 interrupt Init */
-    HAL_NVIC_SetPriority(ADC_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(ADC_IRQn, 2, 0);
     HAL_NVIC_EnableIRQ(ADC_IRQn);
   /* USER CODE BEGIN ADC2_MspInit 1 */
 
@@ -296,7 +296,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     hdma_adc3.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
     hdma_adc3.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
     hdma_adc3.Init.Mode = DMA_CIRCULAR;
-    hdma_adc3.Init.Priority = DMA_PRIORITY_HIGH;
+    hdma_adc3.Init.Priority = DMA_PRIORITY_VERY_HIGH;
     hdma_adc3.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&hdma_adc3) != HAL_OK)
     {
@@ -306,7 +306,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     __HAL_LINKDMA(adcHandle,DMA_Handle,hdma_adc3);
 
     /* ADC3 interrupt Init */
-    HAL_NVIC_SetPriority(ADC_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(ADC_IRQn, 2, 0);
     HAL_NVIC_EnableIRQ(ADC_IRQn);
   /* USER CODE BEGIN ADC3_MspInit 1 */
 

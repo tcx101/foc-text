@@ -7,3 +7,4 @@ foc-text\foc_core.o: ../foc/alg/svpwm.h
 foc-text\foc_core.o: ../foc/alg/pi.h
 foc-text\foc_core.o: ../foc/hal/foc_hal.h
 foc-text\foc_core.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
+foc-text\foc_core.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h

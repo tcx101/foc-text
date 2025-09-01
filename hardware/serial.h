@@ -13,11 +13,11 @@ typedef struct
 
 extern IMU imu;
 
-/**
- * @brief 打印日志信息（使用printf实现）
- * @param format 格式化字符串
- * @param ... 可变参数
- */
-void print_log(const char *format, ...);
+
+
+
+
+
+
 
 #endif

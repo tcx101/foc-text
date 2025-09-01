@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F407xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../hardware;../software;../foc;../foc/alg;../foc/core;../foc/hal;../foc/hal/stm32</IncludePath>
+              <IncludePath>../Core/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../hardware;../software;../simplefoc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -645,62 +645,17 @@
           <GroupName>software</GroupName>
         </Group>
         <Group>
-          <GroupName>foc</GroupName>
+          <GroupName>simplefoc</GroupName>
           <Files>
             <File>
-              <FileName>clarke_park.c</FileName>
+              <FileName>simplefoc.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\foc\alg\clarke_park.c</FilePath>
+              <FilePath>..\simplefoc\simplefoc.c</FilePath>
             </File>
             <File>
-              <FileName>clarke_park.h</FileName>
+              <FileName>simplefoc.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\foc\alg\clarke_park.h</FilePath>
-            </File>
-            <File>
-              <FileName>pi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\foc\alg\pi.c</FilePath>
-            </File>
-            <File>
-              <FileName>pi.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\foc\alg\pi.h</FilePath>
-            </File>
-            <File>
-              <FileName>svpwm.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\foc\alg\svpwm.c</FilePath>
-            </File>
-            <File>
-              <FileName>svpwm.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\foc\alg\svpwm.h</FilePath>
-            </File>
-            <File>
-              <FileName>foc_core.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\foc\core\foc_core.c</FilePath>
-            </File>
-            <File>
-              <FileName>foc_core.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\foc\core\foc_core.h</FilePath>
-            </File>
-            <File>
-              <FileName>foc_hal.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\foc\hal\foc_hal.h</FilePath>
-            </File>
-            <File>
-              <FileName>foc_hal_stm32.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\foc\hal\stm32\foc_hal_stm32.c</FilePath>
-            </File>
-            <File>
-              <FileName>foc_hal_stm32.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\foc\hal\stm32\foc_hal_stm32.h</FilePath>
+              <FilePath>..\simplefoc\simplefoc.h</FilePath>
             </File>
           </Files>
         </Group>

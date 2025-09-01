@@ -2,8 +2,7 @@ foc-text\foc_hal_stm32.o: ..\foc\hal\stm32\foc_hal_stm32.c
 foc-text\foc_hal_stm32.o: ..\foc\hal\stm32\foc_hal_stm32.h
 foc-text\foc_hal_stm32.o: ../foc/hal/foc_hal.h
 foc-text\foc_hal_stm32.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
-foc-text\foc_hal_stm32.o: ../foc/alg/svpwm.h
-foc-text\foc_hal_stm32.o: ../foc/alg/clarke_park.h
+foc-text\foc_hal_stm32.o: ../foc/hal/../alg/svpwm.h
 foc-text\foc_hal_stm32.o: ../Core/Inc/tim.h
 foc-text\foc_hal_stm32.o: ../Core/Inc/main.h
 foc-text\foc_hal_stm32.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h
@@ -44,8 +43,9 @@ foc-text\foc_hal_stm32.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart
 foc-text\foc_hal_stm32.o: ../hardware/adc_measure.h
 foc-text\foc_hal_stm32.o: ../Core/Inc/adc.h
 foc-text\foc_hal_stm32.o: ../hardware/as5600.h
+foc-text\foc_hal_stm32.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 foc-text\foc_hal_stm32.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdarg.h
 foc-text\foc_hal_stm32.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 foc-text\foc_hal_stm32.o: ../foc/core/foc_core.h
-foc-text\foc_hal_stm32.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+foc-text\foc_hal_stm32.o: ../foc/alg/clarke_park.h
 foc-text\foc_hal_stm32.o: ../foc/alg/pi.h

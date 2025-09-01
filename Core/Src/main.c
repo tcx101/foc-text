@@ -27,29 +27,26 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stm32f4xx_hal.h"
+#include "stm32f4xx.h" // 添加这行，确保包含所有STM32相关定义
+#include <stdio.h>
+#include <math.h>
 #include "lcd.h"
 #include "lcd_init.h"
-#include "adc_measure.h"
-#include <stdio.h>
 #include "as5600.h"
-#include "jy60.h"
+#include "adc_measure.h"
 #include "key.h"
-#include <math.h>
-/* -------- 新增 FOC 相关头文�?? -------- */
-#include "foc_core.h"
-#include "foc_hal_stm32.h"
+#include "serial.h"
+#include "simplefoc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-// 删除了旧�?? extern uint16_t AS5600_ReadRawAngle
-extern I2C_HandleTypeDef hi2c1;
-extern I2C_HandleTypeDef hi2c3; /* 新增 M1 �?? I2C 句柄 */
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -60,34 +57,74 @@ extern I2C_HandleTypeDef hi2c3; /* 新增 M1 �?? I2C 句柄 */
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-/* ---------- 新增: FOC 全局句柄与参�?? ---------- */
-MotorParam_t motor_param = {
-    .pole_pairs = 7,
-    .v_bus_nominal = 12.0f,
-    .current_limit = 2.0f};
-FOC_Handle_t foc_motor0;
-FOC_Handle_t foc_motor1;
+/* 新FOC库实�?????????? */
+FOC_Motor_t motor1;
+extern AS5600_t as5600_l; /* 使用左轮编码器做角度来源 */
 
-/* 新增: AS5600 句柄实例 */
-AS5600_Handle_t as5600_m0;
-AS5600_Handle_t as5600_m1;
+/* 新增：当前PWM占空比缓存（0..1�???? */
+static volatile float g_pwm_duty_a = 0.0f;
+static volatile float g_pwm_duty_b = 0.0f;
+static volatile float g_pwm_duty_c = 0.0f;
 
-/* 新增: 引用ADC采样缓冲区 */
-extern uint16_t motor1_adc_buffer[2];
-extern uint16_t motor2_adc_buffer[2];
+/* 母线电压缓存（仅在主循环更新，ISR只读�???? */
+static volatile float g_vbus_cached = 12.0f;
+static volatile uint32_t g_vbus_last_ms = 0;
 
-/* 删除了旧的全�??角度变量 */
-// volatile float g_motor0_elec_angle = 0.0f;
-// volatile float g_motor1_elec_angle = 0.0f;
+/* 硬件接口函数 */
+static float board_get_bus_voltage(void);
+static float board_read_angle(void) {
+    return AS5600_GetAngleRad(&as5600_l);
+}
 
-/* 新增: 声明来自 key.c 的外部变�?? */
-extern float iq_target;
+static void board_read_currents(float *ia, float *ib, float *ic) {
+    if (!ia || !ib || !ic) return;
+    *ia = ADC_Get_Phase_Current_A();
+    *ib = ADC_Get_Phase_Current_B();
+    *ic = -(*ia + *ib);
+}
+
+static void board_set_voltages(float va, float vb, float vc) {
+    // 转换电压为占空比 (使用缓存的�?�线电压，避免在中断中阻塞ADC)
+    float vdc = board_get_bus_voltage();
+    if (vdc < 6.0f) vdc = 12.0f;
+    
+    float duty_a = va / vdc;
+    float duty_b = vb / vdc;
+    float duty_c = vc / vdc;
+    
+    // 限制占空比范�????
+    if (duty_a < 0.0f) duty_a = 0.0f; if (duty_a > 1.0f) duty_a = 1.0f;
+    if (duty_b < 0.0f) duty_b = 0.0f; if (duty_b > 1.0f) duty_b = 1.0f;
+    if (duty_c < 0.0f) duty_c = 0.0f; if (duty_c > 1.0f) duty_c = 1.0f;
+
+    // 记录占空比（0..1�????
+    g_pwm_duty_a = duty_a;
+    g_pwm_duty_b = duty_b;
+    g_pwm_duty_c = duty_c;
+    
+    uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim2);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, (uint32_t)(duty_a * period));
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, (uint32_t)(duty_b * period));
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, (uint32_t)(duty_c * period));
+}
+static float board_get_bus_voltage(void) {
+    return 12.0f;
+}
+/* 组装新的HAL接口 */
+FOC_HAL_t motor_hal = {
+    .read_angle = board_read_angle,
+    .read_currents = board_read_currents,
+    .set_voltages = board_set_voltages,
+    .get_bus_voltage = board_get_bus_voltage
+};
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+AS5600_t as5600_l; // 编码器左�??????????
+AS5600_t as5600_r; // 编码器右�??????????
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -126,7 +163,6 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_TIM2_Init();
-  MX_TIM3_Init();
   MX_TIM4_Init();
   MX_ADC1_Init();
   MX_ADC2_Init();
@@ -135,115 +171,74 @@ int main(void)
   MX_I2C3_Init();
   MX_USART6_UART_Init();
   MX_UART4_Init();
-  MX_TIM8_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
-  /* 初始化LCD与ADC测量模块 */
   LCD_Init();
   LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
-  // 初始化陀螺仪
-  JY60DMA_Init();
-  /* 清屏，准备显示ADC调试信息 */
-  /* 初始化ADC测量模块 */
-  ADC_Measure_Init();
-  ADC_Calibrate_Current_Sensors();
-
-  /* -------- 新增: FOC �? AS5600 初始�? -------- */
-  AS5600_Init(&as5600_m0, &hi2c1, motor_param.pole_pairs);
-  AS5600_Init(&as5600_m1, &hi2c3, motor_param.pole_pairs);
-
-  FOC_HandleInit(&foc_motor0, 0, &motor_param);
-  FOC_HandleInit(&foc_motor1, 1, &motor_param);
-   FOC_Calibrate(&foc_motor0); 
-   FOC_Calibrate(&foc_motor1); 
-  FOC_SetMode(&foc_motor0, FOC_MODE_CURRENT);
-  FOC_SetMode(&foc_motor1, FOC_MODE_CURRENT);
-  FOC_SetCurrentTarget(&foc_motor0, 0.0f, iq_target);
-  FOC_SetCurrentTarget(&foc_motor1, 0.0f, iq_target);
+  //触发adc采样
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, __HAL_TIM_GET_AUTORELOAD(&htim2) / 2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 0);
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, __HAL_TIM_GET_AUTORELOAD(&htim4) / 2);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
-  /* 启动 TIM3 1ms 中断 */
-  HAL_TIM_Base_Start_IT(&htim3);
-  HAL_TIM_Base_Start(&htim8);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
+  HAL_Delay(10);
+  /* 初始化ADC */
+  ADC_Measure_Init();
+  //初始化编码器
+  AS5600_Init(&as5600_l, &hi2c1, 7);
+  AS5600_Init(&as5600_r, &hi2c3, 7);
+  /* 校准电流传感器和电机零点 */
+  ADC_Calibrate_Current_Sensors();
+  FOC_Init(&motor1, 7);  // 7对极
+  FOC_SetHAL(&motor1, &motor_hal);
+  FOC_CalibrateZeroOffset(&motor1);
+  FOC_SetVoltageLimit(&motor1, 12.0f);  
+  FOC_SetCurrentLimit(&motor1, 2.0f);  
+  FOC_SetMode(&motor1, FOC_MODE_TORQUE);
+  FOC_SetTarget(&motor1, 0.0f);
+  HAL_TIM_Base_Start_IT(&htim5);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  
   while (1)
   {
-    key_scan();
-    /* 将按键调节后的新目标值，实时设置给FOC控制�?? */
-    FOC_SetCurrentTarget(&foc_motor0, 0.0f, iq_target);
-    FOC_SetCurrentTarget(&foc_motor1, 0.0f, iq_target);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /* 1. 删除了主循环中的角度读取代码 */
-    
-    /* 2. 低频刷新LCD */
-    static uint32_t last_tick = 0;
-    if (HAL_GetTick() - last_tick > 100) 
-    {
-      last_tick = HAL_GetTick();
-      /* --- �?终显示界�? --- */
-      /* 目标�? (白色) */
-      LCD_ShowString(0, 0, (const uint8_t *)"Iq Ref:", WHITE, BLACK, 16, 0);
-      LCD_ShowFloatNum1(88, 0, iq_target, 4, WHITE, BLACK, 16);
+    AS5600_Process(&as5600_l);
+    AS5600_Process(&as5600_r);
 
-      /* M0 实际�? (绿色) */
-      LCD_ShowString(0, 16, (const uint8_t *)"M0 IqAct:", GREEN, BLACK, 16, 0);
-      LCD_ShowFloatNum1(88, 16, foc_motor0.park_cur.q, 4, GREEN, BLACK, 16);
+    /* Vbus fixed at 12.0V; measurement disabled */
+    key_scan();
+    FOC_SetTarget(&motor1, iq_target);
 
-      /* M1 实际�? (黄色) */
-      LCD_ShowString(0, 32, (const uint8_t *)"M1 IqAct:", YELLOW, BLACK, 16, 0);
-      LCD_ShowFloatNum1(88, 32, foc_motor1.park_cur.q, 4, YELLOW, BLACK, 16);
-      
-      /* 两个电机的q轴电压比�? */
-      LCD_ShowString(0, 48, (const uint8_t *)"Vq:", WHITE, BLACK, 16, 0);
-      LCD_ShowFloatNum1(88, 48, foc_motor0.dq_voltage.q, 4, GREEN, BLACK, 16);
-      LCD_ShowFloatNum1(128, 48, foc_motor1.dq_voltage.q, 4, YELLOW, BLACK, 16);
-      
-      /* 电机电阻估计 (V/I) */
-      float m0_resistance = 0.0f;
-      if (fabsf(foc_motor0.park_cur.q) > 0.05f) { // 避免除以接近零的�?
-        m0_resistance = fabsf(foc_motor0.dq_voltage.q) / fabsf(foc_motor0.park_cur.q);
-      }
-      
-      float m1_resistance = 0.0f;
-      if (fabsf(foc_motor1.park_cur.q) > 0.05f) { // 避免除以接近零的�?
-        m1_resistance = fabsf(foc_motor1.dq_voltage.q) / fabsf(foc_motor1.park_cur.q);
-      }
-      
-      LCD_ShowString(0, 64, (const uint8_t *)"R(V/I):", WHITE, BLACK, 16, 0);
-      LCD_ShowFloatNum1(88, 64, m0_resistance, 4, GREEN, BLACK, 16);
-      LCD_ShowFloatNum1(128, 64, m1_resistance, 4, YELLOW, BLACK, 16);
-      
-      /* 定时器配置比�? */
-      LCD_ShowString(0, 80, (const uint8_t *)"T Period:", WHITE, BLACK, 16, 0);
-      LCD_ShowIntNum(88, 80, htim2.Init.Period, 4, GREEN, BLACK, 16);
-      LCD_ShowIntNum(128, 80, htim4.Init.Period, 4, YELLOW, BLACK, 16);
-      
-      /* ADC采样原始值显示 - A相 */
-      LCD_ShowString(0, 96, (const uint8_t *)"ADC A:", WHITE, BLACK, 16, 0);
-      LCD_ShowIntNum(88, 96, motor1_adc_buffer[0], 4, GREEN, BLACK, 16);
-      LCD_ShowIntNum(128, 96, motor2_adc_buffer[0], 4, YELLOW, BLACK, 16);
-      
-      /* ADC采样原始值显示 - B相 */
-      LCD_ShowString(0, 112, (const uint8_t *)"ADC B:", WHITE, BLACK, 16, 0);
-      LCD_ShowIntNum(88, 112, motor1_adc_buffer[1], 4, GREEN, BLACK, 16);
-      LCD_ShowIntNum(128, 112, motor2_adc_buffer[1], 4, YELLOW, BLACK, 16);
-      
-      /* ADC电压值显示 - A相 */
-      float v_m1a = (motor1_adc_buffer[0] / 4096.0f) * 3.3f;
-      float v_m2a = (motor2_adc_buffer[0] / 4096.0f) * 3.3f;
-      LCD_ShowString(0, 128, (const uint8_t *)"VA:", WHITE, BLACK, 16, 0);
-      LCD_ShowFloatNum1(88, 128, v_m1a, 4, GREEN, BLACK, 16);
-      LCD_ShowFloatNum1(128, 128, v_m2a, 4, YELLOW, BLACK, 16);
-    }
+    float ia = ADC_Get_Phase_Current_A();
+    float ib = ADC_Get_Phase_Current_B();
+    float ic = -(ia + ib);
+    float id = FOC_GetCurrent_D(&motor1);
+    float iq = FOC_GetCurrent_Q(&motor1);
+  
+      printf("Vbus:%.2f,%.3f, %.3f, %.3f, %.1f, %.1f, %.1f, %.3f, %.3f, %.3f\n",
+             g_vbus_cached,
+             iq_target,
+             id, iq,
+             g_pwm_duty_a * 100.0f, g_pwm_duty_b * 100.0f, g_pwm_duty_c * 100.0f,
+             ia, ib, ic);
   }
+  
   /* USER CODE END 3 */
 }
 
@@ -294,44 +289,32 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 /**
- * @brief 定时器中断回调函�??
- * @param htim 定时器句�??
+ * @brief  ADC转换完成回调函数
+ */
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+{
+    // 调用自定义的ADC DMA回调处理函数
+    ADC_DMA_ConvCpltCallback(hadc);
+}
+
+/**
+ * @brief  Period elapsed callback in non blocking mode
  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  /* 判断是否�?? TIM3 中断 (4ms 周期) */
-  if (htim->Instance == TIM3)
-  {
-    /* 中断中恢复FOC执行 */
- AS5600_RequestAngle_IT(&as5600_m0);
- AS5600_RequestAngle_IT(&as5600_m1);
- // 2. 使用上一次完成的角度，执行FOC计算 (dt = 0.004f for 4ms interrupt)
- FOC_RunCurrentLoop(&foc_motor0, 0.004f);
- FOC_RunCurrentLoop(&foc_motor1, 0.004f);
-  }
+	/* USER CODE BEGIN Callback 0 */
+	if (htim == &htim5) {
+		if (ADC_Consume_Motor1_Ready()) {
+			FOC_Update(&motor1);
+		}
+	}
+	/* USER CODE END Callback 0 */
+
+
+	/* USER CODE BEGIN Callback 1 */
+	/* USER CODE END Callback 1 */
 }
 
-// I2C 传输完成回调
-void HAL_I2C_MasterRxCpltCallback(I2C_HandleTypeDef *hi2c)
-{
-  if (hi2c->Instance == I2C1) {
-    AS5600_RxCpltCallback(&as5600_m0);
-  }
-  else if (hi2c->Instance == I2C3) {
-    AS5600_RxCpltCallback(&as5600_m1);
-  }
-}
-
-// I2C 错误回调
-void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
-{
-  if (hi2c->Instance == I2C1) {
-    AS5600_ErrorCallback(&as5600_m0);
-  }
-  else if (hi2c->Instance == I2C3) {
-    AS5600_ErrorCallback(&as5600_m1);
-  }
-}
 
 /* USER CODE END 4 */
 
@@ -342,6 +325,7 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
+
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   while (1)
