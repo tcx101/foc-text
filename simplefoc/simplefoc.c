@@ -1,407 +1,570 @@
-/*
- * SimpleFOC - 重新设计的FOC控制库实现
- * 正确的数学变换，清晰的控制逻辑
+﻿/**
+ * @file simplefoc.c
+ * @brief 标准FOC(Field Oriented Control)算法实现
+ * @version 2.0
+ * @date 2024
+ * 
+ * 严格按照FOC理论实现：
+ * 1. Clarke变换(abc->αβ)
+ * 2. Park变换(αβ->dq) 
+ * 3. PID电流控制(d轴id=0, q轴iq=转矩)
+ * 4. 反Park变换(dq->αβ)
+ * 5. SVPWM(αβ->abc)
  */
+
 #include "simplefoc.h"
-#include <math.h>
 #include <string.h>
+#include <stdio.h>
 #include "tim.h"
+#include "adc_measure.h"
+#include "as5600.h"
 
-// 内部辅助函数
-static float normalize_angle(float angle);
-static void clarke_transform(float a, float b, float c, float *alpha, float *beta);
-static void park_transform(float alpha, float beta, float theta, float *d, float *q);
-static void inv_park_transform(float d, float q, float theta, float *alpha, float *beta);
-static void space_vector_pwm(float alpha, float beta, float vdc, float *va, float *vb, float *vc);
-static float pid_update(FOC_PID_t *pid, float error, float dt);
+extern AS5600_t as5600_l; 
+extern AS5600_t as5600_r; 
 
-// 角度标准化到[-π, π]
-static float normalize_angle(float angle) {
+
+// ===== 内部函数声明 =====
+static void FOC_ComputeVelocity(FOC_Motor_t *motor, float dt);
+static void FOC_CurrentControl(FOC_Motor_t *motor, float dt);
+static void FOC_OuterControl(FOC_Motor_t *motor, float dt);
+
+// ===== 板级默认HAL静态实现（从main.c迁移） =====
+// 依赖外部句柄与变量	extern AS5600_t as5600_l;
+
+static float default_board_get_bus_voltage(void)
+{
+    return 12.0f;
+}
+
+static float default_board_read_angle(void)
+{
+    return AS5600_GetAngleRad(&as5600_l);
+}
+
+static void default_board_read_currents(float *ia, float *ib, float *ic)
+{
+    if (!ia || !ib || !ic) return;
+    *ia = ADC_Get_Phase_Current_A();
+    *ib = ADC_Get_Phase_Current_B();
+    *ic = -(*ia + *ib);
+}
+
+static void default_board_set_voltages(float va, float vb, float vc)
+{
+    float vdc = default_board_get_bus_voltage();
+    if (vdc < 6.0f) vdc = 12.0f;
+
+    float duty_a = 0.5f + (va / vdc);
+    float duty_b = 0.5f + (vb / vdc);
+    float duty_c = 0.5f + (vc / vdc);
+
+    if (duty_a < 0.0f) duty_a = 0.0f;
+    if (duty_a > 1.0f) duty_a = 1.0f;
+    if (duty_b < 0.0f) duty_b = 0.0f;
+    if (duty_b > 1.0f) duty_b = 1.0f;
+    if (duty_c < 0.0f) duty_c = 0.0f;
+    if (duty_c > 1.0f) duty_c = 1.0f;
+
+    uint32_t pwm_period = __HAL_TIM_GET_AUTORELOAD(&htim2);
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, (uint32_t)(duty_a * pwm_period));
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, (uint32_t)(duty_b * pwm_period));
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, (uint32_t)(duty_c * pwm_period));
+}
+
+// ===== 数学工具函数 =====
+
+/**
+ * @brief 角度标准化到[-π, π]
+ */
+float FOC_NormalizeAngle(float angle)
+{
     while (angle > FOC_PI) angle -= FOC_2PI;
     while (angle < -FOC_PI) angle += FOC_2PI;
     return angle;
 }
 
-// Clarke变换 (3相 -> 2相αβ)
-static void clarke_transform(float a, float b, float c, float *alpha, float *beta) {
-    (void)c;
-    *alpha = a;
-    *beta  = (a + 2.0f * b) * (1.0f / FOC_SQRT3);
+/**
+ * @brief Clarke变换: 三相坐标系(abc) -> 两相静止坐标系(αβ)
+ * @param ia, ib, ic 三相电流
+ * @param alpha, beta 输出αβ轴电流
+ */
+void FOC_Clarke(float ia, float ib, float ic, float *alpha, float *beta)
+{    
+    *alpha = ia;
+    *beta = FOC_INV_SQRT3 * (ib - ic);
 }
 
-// Park变换 (αβ -> dq)
-static void park_transform(float alpha, float beta, float theta, float *d, float *q) {
-    float cos_theta = cosf(theta);
-    float sin_theta = sinf(theta);
-    *d = alpha * cos_theta + beta * sin_theta;
+/**
+ * @brief Park变换: 静止坐标系(αβ) -> 旋转坐标系(dq)
+ * @param alpha, beta αβ轴分量
+ * @param cos_theta, sin_theta 旋转角度的余弦和正弦
+ * @param d, q 输出dq轴分量
+ */
+void FOC_Park(float alpha, float beta, float cos_theta, float sin_theta, float *d, float *q)
+{
+    // 标准Park变换矩阵
+    // [d] = [ cos(θ)  sin(θ)] [α]
+    // [q]   [-sin(θ)  cos(θ)] [β]
+    
+    *d =  alpha * cos_theta + beta * sin_theta;
     *q = -alpha * sin_theta + beta * cos_theta;
 }
 
-// 反Park变换 (dq -> αβ)
-static void inv_park_transform(float d, float q, float theta, float *alpha, float *beta) {
-    float cos_theta = cosf(theta);
-    float sin_theta = sinf(theta);
+/**
+ * @brief 反Park变换: 旋转坐标系(dq) -> 静止坐标系(αβ)
+ * @param d, q dq轴分量
+ * @param cos_theta, sin_theta 旋转角度的余弦和正弦
+ * @param alpha, beta 输出αβ轴分量
+ */
+void FOC_InvPark(float d, float q, float cos_theta, float sin_theta, float *alpha, float *beta)
+{
+   
     *alpha = d * cos_theta - q * sin_theta;
-    *beta = d * sin_theta + q * cos_theta;
+    *beta  = d * sin_theta + q * cos_theta;
 }
 
-// 空间矢量PWM
-static void space_vector_pwm(float alpha, float beta, float vdc, float *va, float *vb, float *vc) {
-    // 在线性区限幅：|V_alpha_beta| <= Vdc / sqrt(3)
-    float vref = sqrtf(alpha * alpha + beta * beta);
-    float vmax_alpha_beta = vdc * FOC_INV_SQRT3;
-    if (vref > vmax_alpha_beta && vref > 1e-6f) {
-        float scale = vmax_alpha_beta / vref;
-        alpha *= scale;
-        beta  *= scale;
-    }
-
+/**
+ * @brief 空间矢量脉宽调制(SVPWM)
+ * @param alpha, beta αβ轴电压
+ * @param vdc 母线电压
+ * @param va, vb, vc 输出三相电压
+ */
+void FOC_SVPWM(float alpha, float beta, float vdc, float *va, float *vb, float *vc)
+{
     // 计算三相参考电压
-    float v_a = alpha;
-    float v_b = -0.5f * alpha + FOC_SQRT3_2 * beta;
-    float v_c = -0.5f * alpha - FOC_SQRT3_2 * beta;
+    float va_ref = alpha;
+    float vb_ref = -0.5f * alpha + FOC_SQRT3_2 * beta;
+    float vc_ref = -0.5f * alpha - FOC_SQRT3_2 * beta;
     
-    // 找到最大值和最小值
-    float v_max = v_a;
-    if (v_b > v_max) v_max = v_b;
-    if (v_c > v_max) v_max = v_c;
+    // 找到最大值和最小值，计算中性点偏移
+    float v_max = fmaxf(fmaxf(va_ref, vb_ref), vc_ref);
+    float v_min = fminf(fminf(va_ref, vb_ref), vc_ref);
+    float v_offset = -0.5f * (v_max + v_min);
     
-    float v_min = v_a;
-    if (v_b < v_min) v_min = v_b;
-    if (v_c < v_min) v_min = v_c;
+    // 应用中性点偏移并转换为实际电压
+    *va = va_ref + v_offset;
+    *vb = vb_ref + v_offset;
+    *vc = vc_ref + v_offset;
     
-    // 计算零序分量使电压居中
-    float v_offset = 0.5f * vdc - 0.5f * (v_max + v_min);
-    
-    *va = v_a + v_offset;
-    *vb = v_b + v_offset;
-    *vc = v_c + v_offset;
-    
-    // 限制电压范围
-    if (*va > vdc) *va = vdc;
-    if (*va < 0) *va = 0;
-    if (*vb > vdc) *vb = vdc;
-    if (*vb < 0) *vb = 0;
-    if (*vc > vdc) *vc = vdc;
-    if (*vc < 0) *vc = 0;
+    // 限制电压幅值在线性调制区内
+    float v_limit = vdc * 0.5773f; // √3/3 ≈ 0.5773
+    float v_magnitude = fmaxf(fabsf(*va), fmaxf(fabsf(*vb), fabsf(*vc)));
+    if (v_magnitude > v_limit) {
+        float scale = v_limit / v_magnitude;
+        *va *= scale;
+        *vb *= scale;
+        *vc *= scale;
+    }
 }
 
-// PID控制器更新
-static float pid_update(FOC_PID_t *pid, float error, float dt) {
-    // 比例项
-    float p_term = pid->kp * error;
+// ===== PID控制器 =====
+
+/**
+ * @brief 初始化PID控制器
+ */
+void FOC_PID_Init(FOC_PID_t *pid, float kp, float ki, float kd, float output_limit)
+{
+    if (!pid) return;
     
-    // 积分项
+    pid->kp = kp;
+    pid->ki = ki;
+    pid->kd = kd;
+    pid->output_limit = output_limit;
+    pid->integral = 0.0f;
+    pid->error_prev = 0.0f;
+}
+
+/**
+ * @brief PID控制器更新
+ */
+float FOC_PID_Update(FOC_PID_t *pid, float error, float dt)
+{
+    if (!pid || dt <= 0.0f) return 0.0f;
+    
+    // 比例项
+    float proportional = pid->kp * error;
+    
+    // 积分项 (带积分限幅)
     pid->integral += error * dt;
-    float i_term = pid->ki * pid->integral;
+    float integral_limit = pid->output_limit / (pid->ki + 1e-6f);
+    if (pid->integral > integral_limit) pid->integral = integral_limit;
+    if (pid->integral < -integral_limit) pid->integral = -integral_limit;
+    float integral = pid->ki * pid->integral;
     
     // 微分项
-    float d_term = pid->kd * (error - pid->prev_error) / dt;
-    pid->prev_error = error;
+    float derivative = pid->kd * (error - pid->error_prev) / dt;
+    pid->error_prev = error;
     
-    // 输出
-    float output = p_term + i_term + d_term;
+    // 总输出
+    float output = proportional + integral + derivative;
     
-    // 输出限制和积分抗饱和 (修正反向回算符号)
-    if (output > pid->output_limit) {
-        output = pid->output_limit;
-        if (pid->ki > 0) pid->integral += (output - (p_term + i_term + d_term)) / pid->ki;
-    } else if (output < -pid->output_limit) {
-        output = -pid->output_limit;
-        if (pid->ki > 0) pid->integral += (output - (p_term + i_term + d_term)) / pid->ki;
-    }
+    // 输出限幅
+    if (output > pid->output_limit) output = pid->output_limit;
+    if (output < -pid->output_limit) output = -pid->output_limit;
     
     return output;
 }
 
-// 初始化FOC电机
-bool FOC_Init(FOC_Motor_t *motor, uint8_t pole_pairs) {
+/**
+ * @brief 重置PID控制器
+ */
+void FOC_PID_Reset(FOC_PID_t *pid)
+{
+    if (!pid) return;
+    
+    pid->integral = 0.0f;
+    pid->error_prev = 0.0f;
+}
+
+// ===== FOC核心函数 =====
+
+/**
+ * @brief 初始化FOC电机控制器
+ */
+bool FOC_Init(FOC_Motor_t *motor, uint8_t pole_pairs)
+{
     if (!motor || pole_pairs == 0) return false;
     
+    // 清零结构体
     memset(motor, 0, sizeof(FOC_Motor_t));
     
+    // 基本参数
     motor->pole_pairs = pole_pairs;
-    motor->voltage_limit = 12.0f;  // 默认12V
-    motor->current_limit = 2.0f;   // 默认2A
-    motor->mode = FOC_MODE_TORQUE;
-    
-    // 默认电机等效参数
-    motor->rs = 0.0f;
-    motor->ld = 0.0f;
-    motor->lq = 0.0f;
-    motor->use_decoupling = false;
-    
-    // 默认PID参数
-    motor->pid_vel.kp = 0.5f;
-    motor->pid_vel.ki = 10.0f;
-    motor->pid_vel.kd = 0.0f;
-    motor->pid_vel.output_limit = motor->current_limit;
-    
-    motor->pid_pos.kp = 20.0f;
-    motor->pid_pos.ki = 0.0f;
-    motor->pid_pos.kd = 0.1f;
-    motor->pid_pos.output_limit = 50.0f; // rad/s
-    
-    // 内部电流控制器 (Id, Iq) - 优化参数
-    motor->pid_id.kp = 1.5f;
-    motor->pid_id.ki = 40.0f;
-    motor->pid_id.kd = 0.0f;
-    motor->pid_id.output_limit = motor->voltage_limit;
-    
-    motor->pid_iq.kp = 1.5f;
-    motor->pid_iq.ki = 40.0f;
-    motor->pid_iq.kd = 0.0f;
-    motor->pid_iq.output_limit = motor->voltage_limit;
-    
     motor->initialized = true;
+    motor->sensor_direction = 1;
+    
+    // 电机物理参数默认值
+    motor->rs = 2.3f;           // 相电阻(Ω)
+    motor->ld = 0.00086f;       // d轴电感(H)
+    motor->lq = 0.00086f;       // q轴电感(H)
+    motor->use_decoupling = false; // 默认不使用解耦
+    
+    // 控制限制
+    motor->voltage_limit = 12.0f;   // 电压限制(V)
+    motor->current_limit = 2.0f;    // 电流限制(A)
+    
+    // 控制模式
+    motor->mode = FOC_MODE_TORQUE;
+    motor->target = 0.0f;
+    
+    // 初始化PID控制器 - 保守参数确保稳定
+    FOC_PID_Init(&motor->pid_id, 1.6f, 20.0f, 0.0f, motor->voltage_limit);
+    FOC_PID_Init(&motor->pid_iq, 1.6f, 20.0f, 0.0f, motor->voltage_limit);
+    FOC_PID_Init(&motor->pid_vel, 0.2f, 2.0f, 0.0f, motor->current_limit);
+    FOC_PID_Init(&motor->pid_pos, 20.0f, 0.0f, 0.1f, 50.0f);
+    
     return true;
 }
 
-// 设置硬件接口
-void FOC_SetHAL(FOC_Motor_t *motor, FOC_HAL_t *hal) {
+/**
+ * @brief 设置硬件抽象层接口
+ */
+void FOC_SetHAL(FOC_Motor_t *motor, FOC_HAL_t *hal)
+{
     if (!motor || !hal) return;
     motor->hal = *hal;
+}
+
+/**
+ * @brief 速度计算
+ */
+static void FOC_ComputeVelocity(FOC_Motor_t *motor, float dt)
+{
+    (void)dt;
+    // 使用编码器内部的速度估计，避免由于传感器更新率(2kHz)低于FOC控制率(20kHz)导致的微分噪声
+    motor->velocity = AS5600_GetVelRad(&as5600_l);
+    motor->angle_prev = motor->angle_mech;
+}
+
+/**
+ * @brief 外环控制(位置环、速度环)
+ */
+static void FOC_OuterControl(FOC_Motor_t *motor, float dt)
+{
+    float target_iq = 0.0f;
     
-    // 初始化angle_prev为当前角度，避免第一次速度计算错误
-    if (motor->hal.read_angle) {
-        motor->angle_prev = motor->hal.read_angle();
+    switch (motor->mode) {
+        case FOC_MODE_TORQUE:
+            // 直接转矩控制
+            target_iq = motor->target;
+            break;
+            
+        case FOC_MODE_VELOCITY: {
+            // 速度环控制
+            float vel_error = motor->target - motor->velocity;
+            target_iq = FOC_PID_Update(&motor->pid_vel, vel_error, dt);
+            break;
+        }
+        
+        case FOC_MODE_POSITION: {
+            // 位置环控制
+            float pos_error = FOC_NormalizeAngle(motor->target - motor->angle_mech);
+            float target_vel = FOC_PID_Update(&motor->pid_pos, pos_error, dt);
+            
+            // 速度环
+            float vel_error = target_vel - motor->velocity;
+            target_iq = FOC_PID_Update(&motor->pid_vel, vel_error, dt);
+            break;
+        }
+    }
+    
+    // 电流限制
+    if (target_iq > motor->current_limit) target_iq = motor->current_limit;
+    if (target_iq < -motor->current_limit) target_iq = -motor->current_limit;
+    
+    // 电流环控制
+    FOC_CurrentControl(motor, dt);
+}
+
+/**
+ * @brief 电流环控制
+ */
+static void FOC_CurrentControl(FOC_Motor_t *motor, float dt)
+{
+    // d轴电流控制(id=0，实现最大转矩电流比控制)
+    float id_error = 0.0f - motor->id;
+    motor->vd = FOC_PID_Update(&motor->pid_id, id_error, dt);
+    
+    // q轴电流控制
+    float iq_target = 0.0f;
+    switch (motor->mode) {
+        case FOC_MODE_TORQUE:
+            iq_target = motor->target;
+            break;
+        case FOC_MODE_VELOCITY:
+        case FOC_MODE_POSITION:
+            // 在外环里已把目标写入pid_vel，直接使用pid_vel的上一次输出作为目标
+            iq_target = motor->pid_vel.error_prev * motor->pid_vel.kp + motor->pid_vel.integral * motor->pid_vel.ki + 0.0f; // 近似，不增加额外存储
+            break;
+    }
+    float iq_error = iq_target - motor->iq;
+    motor->vq = FOC_PID_Update(&motor->pid_iq, iq_error, dt);
+    
+    // 解耦补偿(如果启用)
+    if (motor->use_decoupling) {
+        float omega_e = motor->velocity * motor->pole_pairs; // 电角速度
+
+        // 前馈解耦
+        motor->vd += -omega_e * motor->lq * motor->iq;
+        motor->vq += omega_e * motor->ld * motor->id + motor->rs * motor->iq;
     }
 }
 
-// 设置控制模式
-void FOC_SetMode(FOC_Motor_t *motor, FOC_Mode_t mode) {
-    if (!motor) return;
-    motor->mode = mode;
-    
-    // 清零PID积分器
-    motor->pid_vel.integral = 0;
-    motor->pid_vel.prev_error = 0;
-    motor->pid_pos.integral = 0;
-    motor->pid_pos.prev_error = 0;
-    motor->pid_id.integral = 0;
-    motor->pid_id.prev_error = 0;
-    motor->pid_iq.integral = 0;
-    motor->pid_iq.prev_error = 0;
-}
-
-// 设置目标值
-void FOC_SetTarget(FOC_Motor_t *motor, float target) {
-    if (!motor) return;
-    motor->target = target;
-}
-
-// 设置电流限制
-void FOC_SetCurrentLimit(FOC_Motor_t *motor, float limit) {
-    if (!motor || limit <= 0) return;
-    motor->current_limit = limit;
-    motor->pid_vel.output_limit = limit;
-}
-
-// 设置电压限制
-void FOC_SetVoltageLimit(FOC_Motor_t *motor, float limit) {
-    if (!motor || limit <= 0) return;
-    motor->voltage_limit = limit;
-    motor->pid_id.output_limit = limit;
-    motor->pid_iq.output_limit = limit;
-}
-
-// 配置速度PID
-void FOC_ConfigPID_Velocity(FOC_Motor_t *motor, float kp, float ki, float kd, float limit) {
-    if (!motor) return;
-    motor->pid_vel.kp = kp;
-    motor->pid_vel.ki = ki;
-    motor->pid_vel.kd = kd;
-    motor->pid_vel.output_limit = limit;
-}
-
-// 配置位置PID
-void FOC_ConfigPID_Position(FOC_Motor_t *motor, float kp, float ki, float kd, float limit) {
-    if (!motor) return;
-    motor->pid_pos.kp = kp;
-    motor->pid_pos.ki = ki;
-    motor->pid_pos.kd = kd;
-    motor->pid_pos.output_limit = limit;
-}
-
-// 配置电机等效参数（Rs/Ld/Lq）并选择是否开启去耦
-void FOC_ConfigMotorRL(FOC_Motor_t *motor, float rs, float ld, float lq, bool enable_decoupling) {
-    if (!motor) return;
-    motor->rs = rs;
-    motor->ld = ld;
-    motor->lq = lq;
-    motor->use_decoupling = enable_decoupling;
-}
-
-// 主控制更新函数
-void FOC_Update(FOC_Motor_t *motor) {
+/**
+ * @brief FOC主更新函数
+ */
+void FOC_Update(FOC_Motor_t *motor)
+{
     if (!motor || !motor->initialized) return;
     
-    static float s_control_dt = 0.0f;
-    if (s_control_dt <= 0.0f) {
-        s_control_dt = 1.0f / 20000.0f;
-    }
-    const float dt = s_control_dt; // 实际控制周期
-    // 动态计算线性工作区电压上限（dq向量幅值最大值）
-    float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
-    float v_limit = vdc * FOC_INV_SQRT3;
-    // 将电流环PID的输出上限与SVPWM线性范围一致，避免“隐藏饱和”
-    motor->pid_id.output_limit = v_limit;
-    motor->pid_iq.output_limit = v_limit;
+    // 固定控制周期（由TIM5以20kHz调度）
+    const float dt = 0.00005f;
     
-    // 1. 读取传感器数据
+    // === 1. 传感器数据采集 ===
     if (motor->hal.read_angle) {
-        motor->angle_mech = motor->hal.read_angle();
+        motor->angle_mech = motor->sensor_direction * motor->hal.read_angle();
     }
     
     if (motor->hal.read_currents) {
         motor->hal.read_currents(&motor->ia, &motor->ib, &motor->ic);
     }
     
-    // 2. 计算速度 (修复角度跳变问题)
-    float angle_diff = motor->angle_mech - motor->angle_prev;
-    // 处理角度跳变：如果差值过大，说明发生了跳变
-    if (angle_diff > FOC_PI) {
-        angle_diff -= FOC_2PI;
-    } else if (angle_diff < -FOC_PI) {
-        angle_diff += FOC_2PI;
-    }
-    // 使用一阶低通滤波的速度估计，避免I2C角度更新稀疏导致的尖峰
-    static float s_velocity_filtered = 0.0f;
-    const float vel_alpha = 0.2f; // 0..1，越大响应越快
-    float raw_velocity = angle_diff / dt;
-    s_velocity_filtered += vel_alpha * (raw_velocity - s_velocity_filtered);
-    motor->velocity = s_velocity_filtered;
-    motor->angle_prev = motor->angle_mech;
+    // === 2. 速度计算 ===
+    FOC_ComputeVelocity(motor, dt);
+
+    // === 3. 电角度计算 ===
+    motor->angle_elec = fmodf(motor->angle_mech * motor->pole_pairs + motor->elec_zero_offset, FOC_2PI);
+    if (motor->angle_elec < 0.0f) motor->angle_elec += FOC_2PI;
     
-    // 3. 计算电角度
-    motor->angle_elec = normalize_angle(motor->angle_mech * motor->pole_pairs - motor->elec_zero_offset);
+    // === 4. Clarke变换 ===
+    float i_alpha, i_beta;
+    FOC_Clarke(motor->ia, motor->ib, motor->ic, &i_alpha, &i_beta);
     
-    // 4. Clarke和Park变换
-    float alpha, beta;
-    clarke_transform(motor->ia, motor->ib, motor->ic, &alpha, &beta);
-    park_transform(alpha, beta, motor->angle_elec, &motor->id, &motor->iq);
+    // === 5. Park变换 ===
+    float cos_theta = cosf(motor->angle_elec);
+    float sin_theta = sinf(motor->angle_elec);
+    FOC_Park(i_alpha, i_beta, cos_theta, sin_theta, &motor->id, &motor->iq);
     
-    // 5. 控制环计算
-    float target_iq = 0;
+    // === 6. 控制环计算 ===
+    FOC_OuterControl(motor, dt);
     
-    switch (motor->mode) {
-        case FOC_MODE_TORQUE:
-            target_iq = motor->target;
-            break;
-            
-        case FOC_MODE_VELOCITY: {
-            float vel_error = motor->target - motor->velocity;
-            target_iq = pid_update(&motor->pid_vel, vel_error, dt);
-            break;
-        }
-        
-        case FOC_MODE_POSITION: {
-            float pos_error = normalize_angle(motor->target - motor->angle_mech);
-            float target_vel = pid_update(&motor->pid_pos, pos_error, dt);
-            float vel_error = target_vel - motor->velocity;
-            target_iq = pid_update(&motor->pid_vel, vel_error, dt);
-            break;
-        }
-    }
+    // === 7. 反Park变换 ===
+    float v_alpha, v_beta;
+    FOC_InvPark(motor->vd, motor->vq, cos_theta, sin_theta, &v_alpha, &v_beta);
     
-    // 6. 电流限制
-    if (target_iq > motor->current_limit) target_iq = motor->current_limit;
-    if (target_iq < -motor->current_limit) target_iq = -motor->current_limit;
+    // === 8. SVPWM ===
+    float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
+    FOC_SVPWM(v_alpha, v_beta, vdc, &motor->va, &motor->vb, &motor->vc);
     
-    // 7. 电流环PI控制
-    float id_error = 0.0f - motor->id;  // Id目标为0
-    float iq_error = target_iq - motor->iq;
-    
-    motor->vd = pid_update(&motor->pid_id, id_error, dt);
-    motor->vq = pid_update(&motor->pid_iq, iq_error, dt);
-    
-    // 7.5 Rs与交轴去耦/前馈补偿（可选）
-    if (motor->use_decoupling) {
-        float omega_e = motor->velocity * motor->pole_pairs; // 电角速度(rad/s)
-        // PMSM标准模型：
-        // v_d = R_s i_d - ω_e L_q i_q
-        // v_q = R_s i_q + ω_e L_d i_d (+ ω_e ψ_f)
-        motor->vd += motor->rs * motor->id - omega_e * motor->lq * motor->iq;
-        motor->vq += motor->rs * motor->iq + omega_e * motor->ld * motor->id;
-    }
-    
-    // 8. 电压限制（按dq向量幅值限幅到SVPWM线性范围）
-    float v_mag = sqrtf(motor->vd * motor->vd + motor->vq * motor->vq);
-    if (v_mag > v_limit) {
-        float scale = v_limit / v_mag;
-        motor->vd *= scale;
-        motor->vq *= scale;
-    }
-    
-    // 9. 反Park和SVPWM
-    inv_park_transform(motor->vd, motor->vq, motor->angle_elec, &alpha, &beta);
-    
-    space_vector_pwm(alpha, beta, vdc, &motor->va, &motor->vb, &motor->vc);
-    
-    // 10. 输出PWM
+    // === 9. 输出到硬件 ===
     if (motor->hal.set_voltages) {
         motor->hal.set_voltages(motor->va, motor->vb, motor->vc);
     }
-}
-
-// 校准电角度零点
-void FOC_CalibrateZeroOffset(FOC_Motor_t *motor) {
-    if (!motor) return;
     
-    // 采用SVPWM在θ=0方向注入纯D轴电压，等待转子锁定后读角度
-    if (motor->hal.set_voltages && motor->hal.read_angle) {
-        // 选择注入幅值：母线电压的20%左右，避免过流
-        float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
-        float vd_inject = 0.2f * vdc;
-        
-        // 在θ=0上电保持，等待机械对准
-        FOC_OpenLoop_SVPWM(motor, vd_inject, 0.0f, 0.0f);
-        for (volatile int i = 0; i < 500000; i++); // 简单等待一段时间
-        
-        // 多次采样取平均，降低抖动
-        float sum = 0.0f;
-        const int samples = 32;
-        for (int i = 0; i < samples; i++) {
-            sum += motor->hal.read_angle();
-            for (volatile int d = 0; d < 20000; d++);
+    // === 10. 安全保护 ===
+    float current_magnitude = sqrtf(motor->id * motor->id + motor->iq * motor->iq);
+    if (current_magnitude > motor->current_limit * 1.2f) {
+        // 过流保护：停止输出并重置积分项
+        if (motor->hal.set_voltages) {
+            motor->hal.set_voltages(0.0f, 0.0f, 0.0f);
         }
-        float calib_angle = sum / (float)samples;
-        
-        // 目标是使θ_e = p*θ_m - offset 在当前对准时为0 → offset = p*θ_m
-        motor->elec_zero_offset = calib_angle * motor->pole_pairs;
-        
-        // 关闭输出
-        FOC_OpenLoop_SVPWM(motor, 0.0f, 0.0f, 0.0f);
-        for (volatile int i = 0; i < 50000; i++);
+        FOC_PID_Reset(&motor->pid_id);
+        FOC_PID_Reset(&motor->pid_iq);
+        FOC_PID_Reset(&motor->pid_vel);
     }
 }
 
-// 开环测试/调试辅助：SVPWM 映射并输出
-void FOC_OpenLoop_SVPWM(FOC_Motor_t *motor, float vd, float vq, float theta) {
-    if (!motor || !motor->initialized) return;
-    float alpha, beta;
-    inv_park_transform(vd, vq, theta, &alpha, &beta);
+/**
+ * @brief 电角度零点校准
+ */
+void FOC_CalibrateZeroOffset(FOC_Motor_t *motor)
+{
+    if (!motor || !motor->hal.set_voltages || !motor->hal.read_angle) return;
+    
+    // 获取母线电压
     float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
-    float va, vb, vc;
-    space_vector_pwm(alpha, beta, vdc, &va, &vb, &vc);
-    if (motor->hal.set_voltages) {
+    float v_align = vdc * 0.2f; // 使用20%母线电压对齐
+    
+    // 使用InvPark+SVPWM在电角度0进行对齐
+    float alpha, beta, va, vb, vc;
+    FOC_InvPark(v_align, 0.0f, 1.0f, 0.0f, &alpha, &beta);
+    FOC_SVPWM(alpha, beta, vdc, &va, &vb, &vc);
         motor->hal.set_voltages(va, vb, vc);
+    
+    // 等待转子稳定
+    for (int i = 0; i < 300; i++) {
+        HAL_Delay(2);
+        if (motor->hal.read_angle) {
+            motor->hal.read_angle(); // 让编码器稳定
     }
 }
 
-// 获取状态函数
-float FOC_GetAngle(FOC_Motor_t *motor) {
-    return motor ? motor->angle_mech : 0.0f;
+    // 读取对齐后的机械角度
+    float aligned_angle = motor->hal.read_angle();
+    
+    // 计算电角度零偏移（考虑传感器方向）
+    motor->elec_zero_offset = -(motor->sensor_direction * aligned_angle) * motor->pole_pairs;
+    
+    // 标准化到[0, 2π)
+    while (motor->elec_zero_offset < 0.0f) motor->elec_zero_offset += FOC_2PI;
+    while (motor->elec_zero_offset >= FOC_2PI) motor->elec_zero_offset -= FOC_2PI;
+
+    // 停止输出
+    motor->hal.set_voltages(0.0f, 0.0f, 0.0f);
+    HAL_Delay(200);
 }
 
-float FOC_GetVelocity(FOC_Motor_t *motor) {
-    return motor ? motor->velocity : 0.0f;
+// ===== 配置函数 =====
+
+void FOC_SetMode(FOC_Motor_t *motor, FOC_Mode_t mode)
+{
+    if (!motor) return;
+    motor->mode = mode;
 }
 
-float FOC_GetCurrent_D(FOC_Motor_t *motor) {
+void FOC_SetTarget(FOC_Motor_t *motor, float target)
+{
+    if (!motor) return;
+    motor->target = target;
+}
+
+void FOC_SetVoltageLimit(FOC_Motor_t *motor, float limit)
+{
+    if (!motor || limit <= 0.0f) return;
+    motor->voltage_limit = limit;
+    motor->pid_id.output_limit = limit;
+    motor->pid_iq.output_limit = limit;
+}
+
+void FOC_SetCurrentLimit(FOC_Motor_t *motor, float limit)
+{
+    if (!motor || limit <= 0.0f) return;
+    motor->current_limit = limit;
+    motor->pid_vel.output_limit = limit;
+}
+
+void FOC_ConfigMotorRL(FOC_Motor_t *motor, float rs, float ld, float lq, bool use_decoupling)
+{
+    if (!motor) return;
+    motor->rs = rs;
+    motor->ld = ld;
+    motor->lq = lq;
+    motor->use_decoupling = use_decoupling;
+}
+
+// ===== 状态获取函数 =====
+
+float FOC_GetCurrent_D(FOC_Motor_t *motor)
+{
     return motor ? motor->id : 0.0f;
 }
 
-float FOC_GetCurrent_Q(FOC_Motor_t *motor) {
+float FOC_GetCurrent_Q(FOC_Motor_t *motor)
+{
     return motor ? motor->iq : 0.0f;
 } 
+
+float FOC_GetVelocity(FOC_Motor_t *motor)
+{
+    return motor ? motor->velocity : 0.0f;
+}
+
+float FOC_GetAngle(FOC_Motor_t *motor)
+{
+    return motor ? motor->angle_mech : 0.0f;
+}
+
+// ===== 默认HAL绑定 =====
+void FOC_AttachDefaultHAL(FOC_Motor_t *motor)
+{
+    if (!motor) return;
+    FOC_HAL_t hal = {
+        .read_angle = default_board_read_angle,
+        .read_currents = default_board_read_currents,
+        .set_voltages = default_board_set_voltages,
+        .get_bus_voltage = default_board_get_bus_voltage,
+    };
+    FOC_SetHAL(motor, &hal);
+}
+
+void FOC_SetSensorDirection(FOC_Motor_t *motor, int8_t direction)
+{
+    if (!motor) return;
+    motor->sensor_direction = (direction >= 0) ? 1 : -1;
+}
+
+void FOC_CalibrateDirection(FOC_Motor_t *motor)
+{
+    if (!motor || !motor->hal.set_voltages || !motor->hal.read_angle) return;
+
+    float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
+    float v_align = vdc * 0.2f;
+
+    // 先在电角度0对齐
+    float alpha, beta, va, vb, vc;
+    FOC_InvPark(v_align, 0.0f, 1.0f, 0.0f, &alpha, &beta);
+    FOC_SVPWM(alpha, beta, vdc, &va, &vb, &vc);
+    motor->hal.set_voltages(va, vb, vc);
+    HAL_Delay(200);
+
+    // 读取对齐角度
+    float angle0 = motor->hal.read_angle();
+
+    // 沿着+电角方向小幅转动
+    float theta = 0.35f; // ~20deg
+    float cos1 = cosf(theta);
+    float sin1 = sinf(theta);
+    FOC_InvPark(v_align, 0.0f, cos1, sin1, &alpha, &beta);
+    FOC_SVPWM(alpha, beta, vdc, &va, &vb, &vc);
+    motor->hal.set_voltages(va, vb, vc);
+    HAL_Delay(200);
+
+    float angle1 = motor->hal.read_angle();
+
+    // 停止输出
+    motor->hal.set_voltages(0.0f, 0.0f, 0.0f);
+
+    // 比较机械角度变化方向
+    float d = FOC_NormalizeAngle(angle1 - angle0);
+    motor->sensor_direction = (d >= 0.0f) ? 1 : -1;
+}

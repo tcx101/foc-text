@@ -26,7 +26,7 @@ extern "C" {
 #define CURRENT_SENSOR_GAIN     (50.0f)     // 电流采样放大器增益 (V/V)
 
 #ifndef CURRENT_MA_WINDOW
-#define CURRENT_MA_WINDOW       16          // 电流滑动平均窗口大小（样本数）
+#define CURRENT_MA_WINDOW       16           // 电流滑动平均窗口大小（样本数）
 #endif
 
 /* 函数原型 */

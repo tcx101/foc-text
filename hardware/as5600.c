@@ -100,25 +100,22 @@ void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
     enc->raw_angle = value;
     enc->mech_angle = (float)enc->raw_angle * (TWO_PI / 4096.0f);
     
-    // 计算速度
-    uint32_t current_time = HAL_GetTick();
-    if (enc->last_update_time > 0) {
-        uint32_t dt_ms = current_time - enc->last_update_time;
-        if (dt_ms > 0) {
-            float dt_s = dt_ms / 1000.0f;
+    // 计算速度 - 使用TIM3驱动的固定采样周期(2kHz -> 0.5ms)
+    // 注意：I2C中断完成回调触发频率由TIM3决定
+    const float dt_s = 0.0005f;
             float angle_diff = enc->mech_angle - enc->last_mech_angle;
             
             // 处理角度跳跃（0-2π边界）
             if (angle_diff > M_PI) angle_diff -= TWO_PI;
             else if (angle_diff < -M_PI) angle_diff += TWO_PI;
             
-            enc->velocity_rads = angle_diff / dt_s;
+    // 一阶低通滤波降低量化噪声
+    const float alpha = 0.2f; // 0..1, 越小越平滑
+    float vel_raw = angle_diff / dt_s;
+    enc->velocity_rads = alpha * vel_raw + (1.0f - alpha) * enc->velocity_rads;
             enc->velocity_rpm = enc->velocity_rads * 30.0f / M_PI;
-        }
-    }
     
     enc->last_mech_angle = enc->mech_angle;
-    enc->last_update_time = current_time;
 }
 
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)

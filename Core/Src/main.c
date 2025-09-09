@@ -57,74 +57,21 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-/* 新FOC库实�?????????? */
 FOC_Motor_t motor1;
-extern AS5600_t as5600_l; /* 使用左轮编码器做角度来源 */
-
-/* 新增：当前PWM占空比缓存（0..1�???? */
 static volatile float g_pwm_duty_a = 0.0f;
 static volatile float g_pwm_duty_b = 0.0f;
 static volatile float g_pwm_duty_c = 0.0f;
-
-/* 母线电压缓存（仅在主循环更新，ISR只读�???? */
 static volatile float g_vbus_cached = 12.0f;
 static volatile uint32_t g_vbus_last_ms = 0;
-
-/* 硬件接口函数 */
-static float board_get_bus_voltage(void);
-static float board_read_angle(void) {
-    return AS5600_GetAngleRad(&as5600_l);
-}
-
-static void board_read_currents(float *ia, float *ib, float *ic) {
-    if (!ia || !ib || !ic) return;
-    *ia = ADC_Get_Phase_Current_A();
-    *ib = ADC_Get_Phase_Current_B();
-    *ic = -(*ia + *ib);
-}
-
-static void board_set_voltages(float va, float vb, float vc) {
-    // 转换电压为占空比 (使用缓存的�?�线电压，避免在中断中阻塞ADC)
-    float vdc = board_get_bus_voltage();
-    if (vdc < 6.0f) vdc = 12.0f;
-    
-    float duty_a = va / vdc;
-    float duty_b = vb / vdc;
-    float duty_c = vc / vdc;
-    
-    // 限制占空比范�????
-    if (duty_a < 0.0f) duty_a = 0.0f; if (duty_a > 1.0f) duty_a = 1.0f;
-    if (duty_b < 0.0f) duty_b = 0.0f; if (duty_b > 1.0f) duty_b = 1.0f;
-    if (duty_c < 0.0f) duty_c = 0.0f; if (duty_c > 1.0f) duty_c = 1.0f;
-
-    // 记录占空比（0..1�????
-    g_pwm_duty_a = duty_a;
-    g_pwm_duty_b = duty_b;
-    g_pwm_duty_c = duty_c;
-    
-    uint32_t period = __HAL_TIM_GET_AUTORELOAD(&htim2);
-    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, (uint32_t)(duty_a * period));
-    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, (uint32_t)(duty_b * period));
-    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, (uint32_t)(duty_c * period));
-}
-static float board_get_bus_voltage(void) {
-    return 12.0f;
-}
-/* 组装新的HAL接口 */
-FOC_HAL_t motor_hal = {
-    .read_angle = board_read_angle,
-    .read_currents = board_read_currents,
-    .set_voltages = board_set_voltages,
-    .get_bus_voltage = board_get_bus_voltage
-};
+/* 硬件接口�?? simplefoc.c 内部默认实现，使�?? FOC_AttachDefaultHAL 进行绑定 */
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-AS5600_t as5600_l; // 编码器左�??????????
-AS5600_t as5600_r; // 编码器右�??????????
+AS5600_t as5600_l; 
+AS5600_t as5600_r; 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -172,11 +119,11 @@ int main(void)
   MX_USART6_UART_Init();
   MX_UART4_Init();
   MX_TIM5_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   LCD_Init();
   LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
-  //触发adc采样
-  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);//触发adc采样
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, __HAL_TIM_GET_AUTORELOAD(&htim2) / 2);
@@ -192,53 +139,40 @@ int main(void)
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
-  HAL_Delay(10);
-  /* 初始化ADC */
-  ADC_Measure_Init();
-  //初始化编码器
-  AS5600_Init(&as5600_l, &hi2c1, 7);
+  ADC_Measure_Init(); /* 初始化ADC */
+  LCD_ShowString(10,10,"ADC INIT",GREEN,BLACK,32,0);
+  AS5600_Init(&as5600_l, &hi2c1, 7);  // 初始化编码器
   AS5600_Init(&as5600_r, &hi2c3, 7);
-  /* 校准电流传感器和电机零点 */
-  ADC_Calibrate_Current_Sensors();
-  FOC_Init(&motor1, 7);  // 7对极
-  FOC_SetHAL(&motor1, &motor_hal);
+  LCD_ShowString(10,40,"AS5600 INIT",GREEN,BLACK,32,0);
+  HAL_TIM_Base_Start_IT(&htim3); // 启动编码器调度定时器，确保校准时角度连续更新
+  ADC_Calibrate_Current_Sensors(); /* 校准电流传感器和电机零点 */
+  LCD_ShowString(10,70,"CURRENT SENSOR CALIBRATE",GREEN,BLACK,32,0);
+  FOC_Init(&motor1, 7); // 7对极
+  FOC_AttachDefaultHAL(&motor1);
+  FOC_SetVoltageLimit(&motor1, 12.0f);
+  FOC_ConfigMotorRL(&motor1, 2.3f, 0.00086f, 0.00086f, true);
+  FOC_CalibrateDirection(&motor1);
   FOC_CalibrateZeroOffset(&motor1);
-  FOC_SetVoltageLimit(&motor1, 12.0f);  
-  FOC_SetCurrentLimit(&motor1, 2.0f);  
+  FOC_SetCurrentLimit(&motor1, 1.6f);
   FOC_SetMode(&motor1, FOC_MODE_TORQUE);
   FOC_SetTarget(&motor1, 0.0f);
+  LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
   HAL_TIM_Base_Start_IT(&htim5);
+  LCD_ShowString(10,10,"FOC INIT",BLUE,BLACK,32,0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  
+
   while (1)
   {
+    key_scan();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    AS5600_Process(&as5600_l);
-    AS5600_Process(&as5600_r);
-
-    /* Vbus fixed at 12.0V; measurement disabled */
-    key_scan();
-    FOC_SetTarget(&motor1, iq_target);
-
-    float ia = ADC_Get_Phase_Current_A();
-    float ib = ADC_Get_Phase_Current_B();
-    float ic = -(ia + ib);
-    float id = FOC_GetCurrent_D(&motor1);
-    float iq = FOC_GetCurrent_Q(&motor1);
-  
-      printf("Vbus:%.2f,%.3f, %.3f, %.3f, %.1f, %.1f, %.1f, %.3f, %.3f, %.3f\n",
-             g_vbus_cached,
-             iq_target,
-             id, iq,
-             g_pwm_duty_a * 100.0f, g_pwm_duty_b * 100.0f, g_pwm_duty_c * 100.0f,
-             ia, ib, ic);
+    printf("iq_tgt:%.3f,%.3f,%.3f,%.3f,%.2f,%.3f,%.2f\n", motor1.target, FOC_GetCurrent_D(&motor1), FOC_GetCurrent_Q(&motor1), AS5600_GetAngleRad(&as5600_l), AS5600_GetVelRPM(&as5600_l), AS5600_GetAngleRad(&as5600_r), AS5600_GetVelRPM(&as5600_r));
   }
-  
+
   /* USER CODE END 3 */
 }
 
@@ -291,10 +225,10 @@ void SystemClock_Config(void)
 /**
  * @brief  ADC转换完成回调函数
  */
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-    // 调用自定义的ADC DMA回调处理函数
-    ADC_DMA_ConvCpltCallback(hadc);
+  // 调用自定义的ADC DMA回调处理函数
+  ADC_DMA_ConvCpltCallback(hadc);
 }
 
 /**
@@ -302,20 +236,23 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	/* USER CODE BEGIN Callback 0 */
-	if (htim == &htim5) {
-		if (ADC_Consume_Motor1_Ready()) {
-			FOC_Update(&motor1);
-		}
-	}
-	/* USER CODE END Callback 0 */
+  /* USER CODE BEGIN Callback 0 */
+  if (htim == &htim5)
 
+  {
+    FOC_Update(&motor1);
+  }
+  if (htim == &htim3)
+  {
+    AS5600_Process(&as5600_l);
+    AS5600_Process(&as5600_r);
+  }
 
-	/* USER CODE BEGIN Callback 1 */
-	/* USER CODE END Callback 1 */
+  /* USER CODE END Callback 0 */
+
+  /* USER CODE BEGIN Callback 1 */
+  /* USER CODE END Callback 1 */
 }
-
-
 /* USER CODE END 4 */
 
 /**

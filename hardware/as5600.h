@@ -30,7 +30,6 @@ typedef struct {
     uint8_t pole_pairs;
     float zero_elec_offset;
     float last_mech_angle;
-    uint32_t last_update_time;
 } AS5600_t;
 
 /* ---- 对外 API ---- */

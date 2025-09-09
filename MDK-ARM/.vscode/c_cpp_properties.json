@@ -3,19 +3,19 @@
         {
             "name": "foc-text",
             "includePath": [
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\Core\\Inc",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\Drivers\\STM32F4xx_HAL_Driver\\Inc",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\Drivers\\STM32F4xx_HAL_Driver\\Inc\\Legacy",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\Drivers\\CMSIS\\Device\\ST\\STM32F4xx\\Include",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\Drivers\\CMSIS\\Include",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\hardware",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\software",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\simplefoc",
+                "d:\\stm32produce\\foc-text\\Core\\Inc",
+                "d:\\stm32produce\\foc-text\\Drivers\\STM32F4xx_HAL_Driver\\Inc",
+                "d:\\stm32produce\\foc-text\\Drivers\\STM32F4xx_HAL_Driver\\Inc\\Legacy",
+                "d:\\stm32produce\\foc-text\\Drivers\\CMSIS\\Device\\ST\\STM32F4xx\\Include",
+                "d:\\stm32produce\\foc-text\\Drivers\\CMSIS\\Include",
+                "d:\\stm32produce\\foc-text\\hardware",
+                "d:\\stm32produce\\foc-text\\software",
+                "d:\\stm32produce\\foc-text\\simplefoc",
                 "C:\\Keil_v5\\ARM\\ARMCC\\include",
                 "C:\\Keil_v5\\ARM\\ARMCC\\include\\rw",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\MDK-ARM",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\Core\\Src",
-                "c:\\Users\\lenovo\\Desktop\\foc-text\\Drivers\\STM32F4xx_HAL_Driver\\Src"
+                "d:\\stm32produce\\foc-text\\MDK-ARM",
+                "d:\\stm32produce\\foc-text\\Core\\Src",
+                "d:\\stm32produce\\foc-text\\Drivers\\STM32F4xx_HAL_Driver\\Src"
             ],
             "defines": [
                 "USE_HAL_DRIVER",

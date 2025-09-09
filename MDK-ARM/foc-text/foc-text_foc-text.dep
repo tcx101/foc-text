@@ -1,7 +1,7 @@
 Dependencies for Project 'foc-text', Target 'foc-text': (DO NOT MODIFY !)
 CompilerVersion: 5060960::V5.06 update 7 (build 960)::.\ARMCC
-F (startup_stm32f407xx.s)(0x68A5A073)(--cpu Cortex-M4.fp.sp -g --apcs=interwork --pd "__MICROLIB SETA 1"-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include--pd "__UVISION_VERSION SETA 538" --pd "_RTE_ SETA 1" --pd "STM32F407xx SETA 1" --pd "_RTE_ SETA 1"--list startup_stm32f407xx.lst --xref -o foc-text\startup_stm32f407xx.o --depend foc-text\startup_stm32f407xx.d)
-F (../Core/Src/main.c)(0x68A5AC4F)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\main.o --omf_browse foc-text\main.crf --depend foc-text\main.d)
+F (startup_stm32f407xx.s)(0x68BEC2E9)(--cpu Cortex-M4.fp.sp -g --apcs=interwork --pd "__MICROLIB SETA 1"-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include--pd "__UVISION_VERSION SETA 538" --pd "_RTE_ SETA 1" --pd "STM32F407xx SETA 1" --pd "_RTE_ SETA 1"--list startup_stm32f407xx.lst --xref -o foc-text\startup_stm32f407xx.o --depend foc-text\startup_stm32f407xx.d)
+F (../Core/Src/main.c)(0x68BECB40)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\main.o --omf_browse foc-text\main.crf --depend foc-text\main.d)
 I (../Core/Inc/main.h)(0x68A1B204)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
 I (../Core/Inc/stm32f4xx_hal_conf.h)(0x688613E4)
@@ -41,7 +41,7 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
 I (../Core/Inc/adc.h)(0x68722FD9)
 I (../Core/Inc/dma.h)(0x68722FD9)
 I (../Core/Inc/i2c.h)(0x68722FD9)
-I (../Core/Inc/tim.h)(0x68A35E0E)
+I (../Core/Inc/tim.h)(0x68BD2C3B)
 I (../Core/Inc/usart.h)(0x68775AC2)
 I (../Core/Inc/gpio.h)(0x68722FD8)
 I (C:\Keil_v5\ARM\ARMCC\include\stdio.h)(0x675FF246)
@@ -49,11 +49,11 @@ I (C:\Keil_v5\ARM\ARMCC\include\math.h)(0x675FF23E)
 I (../hardware/lcd.h)(0x686F8C3E)
 I (../hardware/serial.h)(0x687DE2A1)
 I (../hardware/lcd_init.h)(0x685E6392)
-I (../hardware/as5600.h)(0x68A5AEBB)
+I (../hardware/as5600.h)(0x68BEC6E1)
 I (C:\Keil_v5\ARM\ARMCC\include\stdbool.h)(0x675FF245)
-I (../hardware/adc_measure.h)(0x68A5AD4D)
+I (../hardware/adc_measure.h)(0x68BEE4C1)
 I (../hardware/key.h)(0x68A34051)
-I (../simplefoc/simplefoc.h)(0x68A47FC5)
+I (../simplefoc/simplefoc.h)(0x68BEA47D)
 F (../Core/Src/gpio.c)(0x68A34720)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\gpio.o --omf_browse foc-text\gpio.crf --depend foc-text\gpio.d)
 I (../Core/Inc/gpio.h)(0x68722FD8)
 I (../Core/Inc/main.h)(0x68A1B204)
@@ -168,7 +168,7 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
-F (../Core/Src/i2c.c)(0x68860684)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\i2c.o --omf_browse foc-text\i2c.crf --depend foc-text\i2c.d)
+F (../Core/Src/i2c.c)(0x68BD2886)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\i2c.o --omf_browse foc-text\i2c.crf --depend foc-text\i2c.d)
 I (../Core/Inc/i2c.h)(0x68722FD9)
 I (../Core/Inc/main.h)(0x68A1B204)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
@@ -206,8 +206,8 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
-F (../Core/Src/tim.c)(0x68A5A072)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\tim.o --omf_browse foc-text\tim.crf --depend foc-text\tim.d)
-I (../Core/Inc/tim.h)(0x68A35E0E)
+F (../Core/Src/tim.c)(0x68BEC2E7)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\tim.o --omf_browse foc-text\tim.crf --depend foc-text\tim.d)
+I (../Core/Inc/tim.h)(0x68BD2C3B)
 I (../Core/Inc/main.h)(0x68A1B204)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
 I (../Core/Inc/stm32f4xx_hal_conf.h)(0x688613E4)
@@ -244,7 +244,7 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
-F (../Core/Src/usart.c)(0x687DD011)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\usart.o --omf_browse foc-text\usart.crf --depend foc-text\usart.d)
+F (../Core/Src/usart.c)(0x68BD2395)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\usart.o --omf_browse foc-text\usart.crf --depend foc-text\usart.d)
 I (../Core/Inc/usart.h)(0x68775AC2)
 I (../Core/Inc/main.h)(0x68A1B204)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
@@ -282,7 +282,7 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
-F (../Core/Src/stm32f4xx_it.c)(0x68860684)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\stm32f4xx_it.o --omf_browse foc-text\stm32f4xx_it.crf --depend foc-text\stm32f4xx_it.d)
+F (../Core/Src/stm32f4xx_it.c)(0x68BEC2AD)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\stm32f4xx_it.o --omf_browse foc-text\stm32f4xx_it.crf --depend foc-text\stm32f4xx_it.d)
 I (../Core/Inc/main.h)(0x68A1B204)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
 I (../Core/Inc/stm32f4xx_hal_conf.h)(0x688613E4)
@@ -319,7 +319,7 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
-I (../Core/Inc/stm32f4xx_it.h)(0x688609C3)
+I (../Core/Inc/stm32f4xx_it.h)(0x68BEC2AD)
 F (../Core/Src/stm32f4xx_hal_msp.c)(0x68722FDA)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\stm32f4xx_hal_msp.o --omf_browse foc-text\stm32f4xx_hal_msp.crf --depend foc-text\stm32f4xx_hal_msp.d)
 I (../Core/Inc/main.h)(0x68A1B204)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
@@ -1114,8 +1114,8 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
-F (..\hardware\adc_measure.c)(0x68B594FC)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\adc_measure.o --omf_browse foc-text\adc_measure.crf --depend foc-text\adc_measure.d)
-I (..\hardware\adc_measure.h)(0x68A5AD4D)
+F (..\hardware\adc_measure.c)(0x68BE55BA)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\adc_measure.o --omf_browse foc-text\adc_measure.crf --depend foc-text\adc_measure.d)
+I (..\hardware\adc_measure.h)(0x68BEE4C1)
 I (../Core/Inc/main.h)(0x68A1B204)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
 I (../Core/Inc/stm32f4xx_hal_conf.h)(0x688613E4)
@@ -1153,10 +1153,10 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
 I (../Core/Inc/adc.h)(0x68722FD9)
-I (../Core/Inc/tim.h)(0x68A35E0E)
-F (..\hardware\adc_measure.h)(0x68A5AD4D)()
-F (..\hardware\as5600.c)(0x68A5AEB5)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\as5600.o --omf_browse foc-text\as5600.crf --depend foc-text\as5600.d)
-I (..\hardware\as5600.h)(0x68A5AEBB)
+I (../Core/Inc/tim.h)(0x68BD2C3B)
+F (..\hardware\adc_measure.h)(0x68BEE4C1)()
+F (..\hardware\as5600.c)(0x68BEE4C1)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\as5600.o --omf_browse foc-text\as5600.crf --depend foc-text\as5600.d)
+I (..\hardware\as5600.h)(0x68BEC6E1)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
 I (../Core/Inc/stm32f4xx_hal_conf.h)(0x688613E4)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h)(0x6825F78B)
@@ -1195,8 +1195,8 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
 I (C:\Keil_v5\ARM\ARMCC\include\stdbool.h)(0x675FF245)
 I (C:\Keil_v5\ARM\ARMCC\include\math.h)(0x675FF23E)
 I (C:\Keil_v5\ARM\ARMCC\include\stdio.h)(0x675FF246)
-F (..\hardware\as5600.h)(0x68A5AEBB)()
-F (..\hardware\jy60.c)(0x68775AEA)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\jy60.o --omf_browse foc-text\jy60.crf --depend foc-text\jy60.d)
+F (..\hardware\as5600.h)(0x68BEC6E1)()
+F (..\hardware\jy60.c)(0x68B5A853)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\jy60.o --omf_browse foc-text\jy60.crf --depend foc-text\jy60.d)
 I (..\hardware\jy60.h)(0x68A340D2)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
 I (../Core/Inc/stm32f4xx_hal_conf.h)(0x688613E4)
@@ -1240,7 +1240,7 @@ I (..\hardware\serial.h)(0x687DE2A1)
 I (C:\Keil_v5\ARM\ARMCC\include\stdio.h)(0x675FF246)
 I (C:\Keil_v5\ARM\ARMCC\include\string.h)(0x675FF247)
 F (..\hardware\jy60.h)(0x68A340D2)()
-F (..\hardware\key.c)(0x68A340D5)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\key.o --omf_browse foc-text\key.crf --depend foc-text\key.d)
+F (..\hardware\key.c)(0x68BEBFA3)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\key.o --omf_browse foc-text\key.crf --depend foc-text\key.d)
 I (..\hardware\key.h)(0x68A34051)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
 I (../Core/Inc/stm32f4xx_hal_conf.h)(0x688613E4)
@@ -1277,8 +1277,9 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
-I (../simplefoc/simplefoc.h)(0x68A47FC5)
+I (../simplefoc/simplefoc.h)(0x68BEA47D)
 I (C:\Keil_v5\ARM\ARMCC\include\stdbool.h)(0x675FF245)
+I (C:\Keil_v5\ARM\ARMCC\include\math.h)(0x675FF23E)
 F (..\hardware\key.h)(0x68A34051)()
 F (..\hardware\lcd.c)(0x687C51B1)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\lcd.o --omf_browse foc-text\lcd.crf --depend foc-text\lcd.d)
 I (..\hardware\lcd.h)(0x686F8C3E)
@@ -1411,13 +1412,14 @@ I (../Core/Inc/usart.h)(0x68775AC2)
 I (../Core/Inc/main.h)(0x68A1B204)
 I (C:\Keil_v5\ARM\ARMCC\include\stdarg.h)(0x675FF244)
 F (..\hardware\serial.h)(0x687DE2A1)()
-F (..\simplefoc\simplefoc.c)(0x68A5B487)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\simplefoc.o --omf_browse foc-text\simplefoc.crf --depend foc-text\simplefoc.d)
-I (..\simplefoc\simplefoc.h)(0x68A47FC5)
+F (..\simplefoc\simplefoc.c)(0x68BEE821)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Core/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../hardware -I ../software -I ../simplefoc-I.\RTE\_foc-text-IC:\Keil_v5\ARM\PACK\ARM\CMSIS\5.9.0\CMSIS\Core\Include-D__UVISION_VERSION="538" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o foc-text\simplefoc.o --omf_browse foc-text\simplefoc.crf --depend foc-text\simplefoc.d)
+I (..\simplefoc\simplefoc.h)(0x68BEA47D)
 I (C:\Keil_v5\ARM\ARMCC\include\stdint.h)(0x675FF245)
 I (C:\Keil_v5\ARM\ARMCC\include\stdbool.h)(0x675FF245)
 I (C:\Keil_v5\ARM\ARMCC\include\math.h)(0x675FF23E)
 I (C:\Keil_v5\ARM\ARMCC\include\string.h)(0x675FF247)
-I (../Core/Inc/tim.h)(0x68A35E0E)
+I (C:\Keil_v5\ARM\ARMCC\include\stdio.h)(0x675FF246)
+I (../Core/Inc/tim.h)(0x68BD2C3B)
 I (../Core/Inc/main.h)(0x68A1B204)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x6825F78B)
 I (../Core/Inc/stm32f4xx_hal_conf.h)(0x688613E4)
@@ -1453,4 +1455,7 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x6825F78B)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x6825F78B)
-F (..\simplefoc\simplefoc.h)(0x68A47FC5)()
+I (../hardware/adc_measure.h)(0x68BEE4C1)
+I (../Core/Inc/adc.h)(0x68722FD9)
+I (../hardware/as5600.h)(0x68BEC6E1)
+F (..\simplefoc\simplefoc.h)(0x68BEA47D)()
