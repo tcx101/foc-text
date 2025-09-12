@@ -38,6 +38,8 @@
 "foc-text\lcd.o"
 "foc-text\lcd_init.o"
 "foc-text\serial.o"
+"foc-text\blance.o"
+"foc-text\vofa.o"
 "foc-text\simplefoc.o"
 --library_type=microlib --strict --scatter "foc-text\foc-text.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols

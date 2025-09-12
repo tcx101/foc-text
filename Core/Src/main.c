@@ -24,20 +24,9 @@
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stm32f4xx_hal.h"
-#include "stm32f4xx.h" // 添加这行，确保包含所有STM32相关定义
-#include <stdio.h>
-#include <math.h>
-#include "lcd.h"
-#include "lcd_init.h"
-#include "as5600.h"
-#include "adc_measure.h"
-#include "key.h"
-#include "serial.h"
-#include "simplefoc.h"
+#include "Allfile.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,20 +47,19 @@
 
 /* USER CODE BEGIN PV */
 FOC_Motor_t motor1;
+AS5600_t as5600_l; 
+AS5600_t as5600_r; 
 static volatile float g_pwm_duty_a = 0.0f;
 static volatile float g_pwm_duty_b = 0.0f;
 static volatile float g_pwm_duty_c = 0.0f;
 static volatile float g_vbus_cached = 12.0f;
 static volatile uint32_t g_vbus_last_ms = 0;
-/* 硬件接口�?? simplefoc.c 内部默认实现，使�?? FOC_AttachDefaultHAL 进行绑定 */
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-AS5600_t as5600_l; 
-AS5600_t as5600_r; 
+ 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -170,7 +158,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    printf("iq_tgt:%.3f,%.3f,%.3f,%.3f,%.2f,%.3f,%.2f\n", motor1.target, FOC_GetCurrent_D(&motor1), FOC_GetCurrent_Q(&motor1), AS5600_GetAngleRad(&as5600_l), AS5600_GetVelRPM(&as5600_l), AS5600_GetAngleRad(&as5600_r), AS5600_GetVelRPM(&as5600_r));
+   
   }
 
   /* USER CODE END 3 */

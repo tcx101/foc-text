@@ -42,6 +42,7 @@ foc-text\main.o: ../Core/Inc/i2c.h
 foc-text\main.o: ../Core/Inc/tim.h
 foc-text\main.o: ../Core/Inc/usart.h
 foc-text\main.o: ../Core/Inc/gpio.h
+foc-text\main.o: ../software/Allfile.h
 foc-text\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 foc-text\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
 foc-text\main.o: ../hardware/lcd.h
@@ -52,3 +53,10 @@ foc-text\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
 foc-text\main.o: ../hardware/adc_measure.h
 foc-text\main.o: ../hardware/key.h
 foc-text\main.o: ../simplefoc/simplefoc.h
+foc-text\main.o: ../software/vofa.h
+foc-text\main.o: ../software/Allfile.h
+foc-text\main.o: ../software/vofa.h
+foc-text\main.o: ../hardware/jy60.h
+foc-text\main.o: ../software/blance.h
+foc-text\main.o: ../software/Allfile.h
+foc-text\main.o: ../software/blance.h

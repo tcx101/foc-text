@@ -86,7 +86,7 @@ void ADC_Calibrate_Current_Sensors(void)
 {
   uint32_t sum_m1a = 0, sum_m1b = 0;
   uint32_t sum_m2a = 0, sum_m2b = 0;
-  const int calibration_samples = 500;
+  const int calibration_samples = 1000;
 
   // 在校准前，确保所有PWM通道输出为0（完全关闭）避免电流流动
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
