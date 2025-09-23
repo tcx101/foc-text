@@ -37,5 +37,12 @@ float JY60DMA_GetPitch(void);
 float JY60DMA_GetYaw(void);
 float JY60DMA_GetTemperature(void);
 
+/* 写命令辅助：按手册需要的解锁/保存等 */
+void JY60_Unlock(void);
+void JY60_Save(void);
+
+/* 运行时调整加速度量程（单位：g），内部自动换算为 m/s^2 */
+void JY60_SetAccelRangeG(float range_g);
+
 #endif
 

@@ -37,13 +37,15 @@ typedef struct {
     void (*read_currents)(float *ia, float *ib, float *ic); // 读取三相电流
     void (*set_voltages)(float va, float vb, float vc); // 设置三相电压
     float (*get_bus_voltage)(void);                     // 获取母线电压
+    float (*get_velocity)(void);                        // 获取角速度(rad/s)
 } FOC_HAL_t;
 
 // FOC控制模式
 typedef enum {
     FOC_MODE_TORQUE = 0,    // 转矩控制模式
     FOC_MODE_VELOCITY,      // 速度控制模式  
-    FOC_MODE_POSITION       // 位置控制模式
+    FOC_MODE_POSITION,      // 位置控制模式
+    FOC_MODE_OPEN_LOOP      // 开环控制模式
 } FOC_Mode_t;
 
 // FOC电机控制结构体
@@ -59,6 +61,10 @@ typedef struct {
     float current_limit;    // 电流限制(A)
     FOC_Mode_t mode;        // 控制模式
     float target;           // 目标值
+    
+    // 开环控制参数
+    float open_loop_voltage; // 开环电压(V)
+    float open_loop_angle;   // 开环角度(rad)
     
     // 传感器数据
     float angle_mech;       // 机械角度(rad)
@@ -102,6 +108,7 @@ void FOC_SetHAL(FOC_Motor_t *motor, FOC_HAL_t *hal);
 void FOC_Update(FOC_Motor_t *motor);
 // 默认板级HAL绑定（把板载ADC/AS5600/TIM绑定到motor->hal）
 void FOC_AttachDefaultHAL(FOC_Motor_t *motor);
+void FOC_AttachMotor2HAL(FOC_Motor_t *motor);
 
 // === 配置函数 ===
 void FOC_SetMode(FOC_Motor_t *motor, FOC_Mode_t mode);
@@ -110,6 +117,10 @@ void FOC_SetVoltageLimit(FOC_Motor_t *motor, float limit);
 void FOC_SetCurrentLimit(FOC_Motor_t *motor, float limit);
 void FOC_ConfigMotorRL(FOC_Motor_t *motor, float rs, float ld, float lq, bool use_decoupling);
 void FOC_SetSensorDirection(FOC_Motor_t *motor, int8_t direction);
+
+// === 开环控制函数 ===
+void FOC_SetOpenLoopVoltage(FOC_Motor_t *motor, float voltage);
+void FOC_SetOpenLoopAngle(FOC_Motor_t *motor, float angle);
 
 // === 校准函数 ===
 void FOC_CalibrateZeroOffset(FOC_Motor_t *motor);
@@ -133,8 +144,6 @@ void FOC_Park(float alpha, float beta, float cos_theta, float sin_theta, float *
 void FOC_InvPark(float d, float q, float cos_theta, float sin_theta, float *alpha, float *beta);
 void FOC_SVPWM(float alpha, float beta, float vdc, float *va, float *vb, float *vc);
 
-#ifdef __cplusplus
-}
-#endif
+
 
 #endif /* __SIMPLEFOC_H__ */

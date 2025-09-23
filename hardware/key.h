@@ -1,7 +1,6 @@
 #ifndef __KEY_H
 #define __KEY_H
-#include "stm32f4xx_hal.h"
-#include "simplefoc.h"
+#include "Allfile.h"
 
 
 typedef struct {
@@ -14,8 +13,8 @@ extern float iq_target ;
 extern float vel_target; // 将vel_target声明为外部变量
 
 
-void key_scan(void);
-
-
+void key_currentLoop(void);
+void key_speedLoop(void);
+void key_openLoop(void);
 #endif
 

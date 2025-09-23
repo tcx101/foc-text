@@ -50,9 +50,11 @@ foc-text\vofa.o: ../hardware/adc_measure.h
 foc-text\vofa.o: ../Core/Inc/adc.h
 foc-text\vofa.o: ../Core/Inc/tim.h
 foc-text\vofa.o: ../hardware/key.h
+foc-text\vofa.o: ../software/Allfile.h
+foc-text\vofa.o: ../hardware/key.h
 foc-text\vofa.o: ../simplefoc/simplefoc.h
-foc-text\vofa.o: ..\software\vofa.h
+foc-text\vofa.o: ../software/vofa.h
 foc-text\vofa.o: ../hardware/jy60.h
-foc-text\vofa.o: ..\software\blance.h
-foc-text\vofa.o: ..\software\Allfile.h
-foc-text\vofa.o: ..\software\blance.h
+foc-text\vofa.o: ../software/blance.h
+foc-text\vofa.o: ../software/Allfile.h
+foc-text\vofa.o: ../software/blance.h

@@ -27,7 +27,7 @@ void LCD_ShowPicture(uint16_t x,uint16_t y,uint16_t length,uint16_t width,const 
 void LCD_Clear(uint16_t color);//清屏函数
 void LCD_DisplayInit(void);//显示初始化函数
 void LCD_Debug(void);//LCD调试函数，用于逐步测试LCD功能
-void windowMenu (void);
+
 // 画笔颜色 - 针对ST7789V2芯片定义
 // ST7789V2使用RGB565颜色格式
 #define BLACK       0x0000  // 黑色

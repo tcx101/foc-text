@@ -2,6 +2,7 @@
  * as5600.c  --  全新中断驱动实现
  */
 #include "as5600.h"
+#include "main.h"  // 添加这个包含，确保I2C1、I2C3等定义可用
 #include <math.h>
 #include <stdio.h>
 
@@ -100,9 +101,12 @@ void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
     enc->raw_angle = value;
     enc->mech_angle = (float)enc->raw_angle * (TWO_PI / 4096.0f);
     
-    // 计算速度 - 使用TIM3驱动的固定采样周期(2kHz -> 0.5ms)
-    // 注意：I2C中断完成回调触发频率由TIM3决定
-    const float dt_s = 0.0005f;
+    // 计算速度 - 使用实际时间间隔而不是固定值
+    uint32_t current_time = HAL_GetTick();
+    float dt_s = (current_time - enc->last_update_ms) * 0.001f; // 转换为秒
+    
+    // 防止除零和异常时间间隔
+    if (dt_s > 0.0001f && dt_s < 0.1f) { // 限制时间间隔在0.1ms到100ms之间
             float angle_diff = enc->mech_angle - enc->last_mech_angle;
             
             // 处理角度跳跃（0-2π边界）
@@ -110,12 +114,14 @@ void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
             else if (angle_diff < -M_PI) angle_diff += TWO_PI;
             
     // 一阶低通滤波降低量化噪声
-    const float alpha = 0.2f; // 0..1, 越小越平滑
+    const float alpha = 0.1f; // 0..1, 越小越平滑
     float vel_raw = angle_diff / dt_s;
     enc->velocity_rads = alpha * vel_raw + (1.0f - alpha) * enc->velocity_rads;
             enc->velocity_rpm = enc->velocity_rads * 30.0f / M_PI;
+    }
     
     enc->last_mech_angle = enc->mech_angle;
+    enc->last_update_ms = current_time;
 }
 
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)

@@ -30,7 +30,7 @@ static volatile float motor1_current_a_filtered = 0.0f;
 static volatile float motor1_current_b_filtered = 0.0f;
 static volatile uint8_t motor1_current_filter_inited = 0;
 #ifndef CURRENT_FILTER_ALPHA
-#define CURRENT_FILTER_ALPHA (0.14f) // 越小越平滑
+#define CURRENT_FILTER_ALPHA (0.12f) // 越小越平滑
 #endif
 // 电机2 EMA
 static volatile float motor2_current_a_filtered = 0.0f;
@@ -56,6 +56,22 @@ volatile uint8_t adc3_conv_complete = 0;
 
 void ADC_Measure_Init(void)
 {
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);//触发adc采样
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, __HAL_TIM_GET_AUTORELOAD(&htim2) / 2);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 0);
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, __HAL_TIM_GET_AUTORELOAD(&htim4) / 2);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
   // 停止可能存在的ADC传输
   HAL_ADC_Stop_DMA(&hadc2);
   HAL_ADC_Stop_DMA(&hadc3);
@@ -86,7 +102,7 @@ void ADC_Calibrate_Current_Sensors(void)
 {
   uint32_t sum_m1a = 0, sum_m1b = 0;
   uint32_t sum_m2a = 0, sum_m2b = 0;
-  const int calibration_samples = 1000;
+  const int calibration_samples = 500;
 
   // 在校准前，确保所有PWM通道输出为0（完全关闭）避免电流流动
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
@@ -96,6 +112,8 @@ void ADC_Calibrate_Current_Sensors(void)
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
 
+  HAL_Delay(50); // 等待ADC DMA稳定
+
   // 采集并累加ADC原始读数
   for (int i = 0; i < calibration_samples; i++)
   {
@@ -103,7 +121,7 @@ void ADC_Calibrate_Current_Sensors(void)
     sum_m1b += adc2_dma_buffer[1]; // ADC2 IN8
     sum_m2a += adc3_dma_buffer[0]; // ADC3 IN10
     sum_m2b += adc3_dma_buffer[1]; // ADC3 IN13
-    HAL_Delay(10);
+    HAL_Delay(1);
   }
 
   // 计算平均值作为ADC零点偏移
@@ -245,7 +263,7 @@ float ADC_Get_Phase_Current_B_Motor2(void)
 {
   if (motor2_current_filter_inited)
   {
-    return motor2_current_b_filtered;
+    return  motor2_current_b_filtered;
   }
   int32_t calibrated_adc = (int32_t)motor2_adc_latched_b - (int32_t)motor2_adc_offset_b;
   return adc_to_current(calibrated_adc);
@@ -259,6 +277,6 @@ float ADC_Get_Phase_Current_C_Motor2(void)
 static float adc_to_current(int32_t calibrated_adc)
 {
   float voltage_calibrated = (float)calibrated_adc * (ADC_VREF / ADC_RESOLUTION);
-  float current = - voltage_calibrated / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);  
+  float current = -voltage_calibrated / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);  
   return current;
 }

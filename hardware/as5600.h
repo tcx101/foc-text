@@ -25,8 +25,10 @@ typedef struct {
     float velocity_rads;   // 速度（rad/s）
     float velocity_rpm;    // 速度（rpm）
     uint32_t last_update_ms;
+    uint32_t last_read_start_ms;  // 记录最后一次开始读取的时间
     bool busy;
     uint8_t error_cnt;
+    uint8_t consecutive_errors;   // 连续错误计数
     uint8_t pole_pairs;
     float zero_elec_offset;
     float last_mech_angle;
@@ -35,6 +37,8 @@ typedef struct {
 /* ---- 对外 API ---- */
 bool AS5600_Init(AS5600_t *enc, I2C_HandleTypeDef *hi2c, uint8_t pole_pairs);
 void AS5600_Process(AS5600_t *enc);
+void AS5600_Reset(AS5600_t *enc);
+uint8_t AS5600_GetErrorCount(AS5600_t *enc);
 float AS5600_GetAngleRad(AS5600_t *enc);
 float AS5600_GetVelRad(AS5600_t *enc);
 

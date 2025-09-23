@@ -11,7 +11,6 @@
  * 4. 反Park变换(dq->αβ)
  * 5. SVPWM(αβ->abc)
  */
-
 #include "simplefoc.h"
 #include <string.h>
 #include <stdio.h>
@@ -25,7 +24,7 @@ extern AS5600_t as5600_r;
 
 // ===== 内部函数声明 =====
 static void FOC_ComputeVelocity(FOC_Motor_t *motor, float dt);
-static void FOC_CurrentControl(FOC_Motor_t *motor, float dt);
+static void FOC_CurrentControl(FOC_Motor_t *motor, float target_iq, float dt);
 static void FOC_OuterControl(FOC_Motor_t *motor, float dt);
 
 // ===== 板级默认HAL静态实现（从main.c迁移） =====
@@ -69,6 +68,59 @@ static void default_board_set_voltages(float va, float vb, float vc)
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, (uint32_t)(duty_a * pwm_period));
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, (uint32_t)(duty_b * pwm_period));
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, (uint32_t)(duty_c * pwm_period));
+}
+
+static float default_board_get_velocity(void)
+{
+    return AS5600_GetVelRad(&as5600_l);
+}
+
+// ==== Motor2 HAL (Right motor: AS5600_r + TIM4 PD12-14) ====
+static float motor2_get_bus_voltage(void)
+{
+    return 12.0f;
+}
+
+static float motor2_read_angle(void)
+{
+    return AS5600_GetAngleRad(&as5600_r);
+}
+
+static void motor2_read_currents(float *ia, float *ib, float *ic)
+{
+    if (!ia || !ib || !ic) return;
+    // Read motor2 currents from ADC layer (A/B already mapped)
+    *ia = ADC_Get_Phase_Current_A_Motor2();
+    *ib = ADC_Get_Phase_Current_B_Motor2();
+    *ic = -(*ia + *ib);
+}
+
+static void motor2_set_voltages(float va, float vb, float vc)
+{
+    float vdc = motor2_get_bus_voltage();
+    if (vdc < 6.0f) vdc = 12.0f;
+
+    float duty_a = 0.5f + (va / vdc);
+    float duty_b = 0.5f + (vb / vdc);
+    float duty_c = 0.5f + (vc / vdc);
+
+    if (duty_a < 0.0f) duty_a = 0.0f;
+    if (duty_a > 1.0f) duty_a = 1.0f;
+    if (duty_b < 0.0f) duty_b = 0.0f;
+    if (duty_b > 1.0f) duty_b = 1.0f;
+    if (duty_c < 0.0f) duty_c = 0.0f;
+    if (duty_c > 1.0f) duty_c = 1.0f;
+
+    uint32_t pwm_period = __HAL_TIM_GET_AUTORELOAD(&htim4);
+    // Same phase mapping as motor1: CH1<-va, CH2<-vb, CH3<-vc
+    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, (uint32_t)(duty_a * pwm_period));
+    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, (uint32_t)(duty_b * pwm_period));
+    __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, (uint32_t)(duty_c * pwm_period));
+}
+
+static float motor2_get_velocity(void)
+{
+    return AS5600_GetVelRad(&as5600_r);
 }
 
 // ===== 数学工具函数 =====
@@ -237,7 +289,7 @@ bool FOC_Init(FOC_Motor_t *motor, uint8_t pole_pairs)
     motor->rs = 2.3f;           // 相电阻(Ω)
     motor->ld = 0.00086f;       // d轴电感(H)
     motor->lq = 0.00086f;       // q轴电感(H)
-    motor->use_decoupling = false; // 默认不使用解耦
+    motor->use_decoupling = true; // 默认不使用解耦
     
     // 控制限制
     motor->voltage_limit = 12.0f;   // 电压限制(V)
@@ -247,11 +299,15 @@ bool FOC_Init(FOC_Motor_t *motor, uint8_t pole_pairs)
     motor->mode = FOC_MODE_TORQUE;
     motor->target = 0.0f;
     
-    // 初始化PID控制器 - 保守参数确保稳定
-    FOC_PID_Init(&motor->pid_id, 1.6f, 20.0f, 0.0f, motor->voltage_limit);
-    FOC_PID_Init(&motor->pid_iq, 1.6f, 20.0f, 0.0f, motor->voltage_limit);
-    FOC_PID_Init(&motor->pid_vel, 0.2f, 2.0f, 0.0f, motor->current_limit);
-    FOC_PID_Init(&motor->pid_pos, 20.0f, 0.0f, 0.1f, 50.0f);
+    // 开环控制参数初始化
+    motor->open_loop_voltage = 0.0f;
+    motor->open_loop_angle = 0.0f;
+    
+    // 初始化PID控制器 
+    FOC_PID_Init(&motor->pid_id,1.5f, 40.0f, 0.0f, motor->voltage_limit);
+    FOC_PID_Init(&motor->pid_iq,1.5f, 40.0f, 0.0f, motor->voltage_limit);
+    FOC_PID_Init(&motor->pid_vel, 0.2f, 4.0f, 0.0f, motor->current_limit);
+    FOC_PID_Init(&motor->pid_pos, 20.0f, 0.0f, 0.1f, 100.0f);
     
     return true;
 }
@@ -271,8 +327,9 @@ void FOC_SetHAL(FOC_Motor_t *motor, FOC_HAL_t *hal)
 static void FOC_ComputeVelocity(FOC_Motor_t *motor, float dt)
 {
     (void)dt;
-    // 使用编码器内部的速度估计，避免由于传感器更新率(2kHz)低于FOC控制率(20kHz)导致的微分噪声
-    motor->velocity = AS5600_GetVelRad(&as5600_l);
+    // 使用编码器内部的速度估计，方向与角度保持一致
+    float vel_raw = motor->hal.get_velocity ? motor->hal.get_velocity() : AS5600_GetVelRad(&as5600_l);
+    motor->velocity = motor->sensor_direction * vel_raw;
     motor->angle_prev = motor->angle_mech;
 }
 
@@ -306,38 +363,30 @@ static void FOC_OuterControl(FOC_Motor_t *motor, float dt)
             target_iq = FOC_PID_Update(&motor->pid_vel, vel_error, dt);
             break;
         }
+        
+        case FOC_MODE_OPEN_LOOP:
+            // 开环控制 - 跳过电流环
+            return;
     }
     
     // 电流限制
     if (target_iq > motor->current_limit) target_iq = motor->current_limit;
     if (target_iq < -motor->current_limit) target_iq = -motor->current_limit;
-    
     // 电流环控制
-    FOC_CurrentControl(motor, dt);
+    FOC_CurrentControl(motor, target_iq, dt);
 }
 
 /**
  * @brief 电流环控制
  */
-static void FOC_CurrentControl(FOC_Motor_t *motor, float dt)
+static void FOC_CurrentControl(FOC_Motor_t *motor, float target_iq, float dt)
 {
     // d轴电流控制(id=0，实现最大转矩电流比控制)
     float id_error = 0.0f - motor->id;
     motor->vd = FOC_PID_Update(&motor->pid_id, id_error, dt);
     
     // q轴电流控制
-    float iq_target = 0.0f;
-    switch (motor->mode) {
-        case FOC_MODE_TORQUE:
-            iq_target = motor->target;
-            break;
-        case FOC_MODE_VELOCITY:
-        case FOC_MODE_POSITION:
-            // 在外环里已把目标写入pid_vel，直接使用pid_vel的上一次输出作为目标
-            iq_target = motor->pid_vel.error_prev * motor->pid_vel.kp + motor->pid_vel.integral * motor->pid_vel.ki + 0.0f; // 近似，不增加额外存储
-            break;
-    }
-    float iq_error = iq_target - motor->iq;
+    float iq_error = target_iq - motor->iq;
     motor->vq = FOC_PID_Update(&motor->pid_iq, iq_error, dt);
     
     // 解耦补偿(如果启用)
@@ -388,15 +437,38 @@ void FOC_Update(FOC_Motor_t *motor)
     // === 6. 控制环计算 ===
     FOC_OuterControl(motor, dt);
     
-    // === 7. 反Park变换 ===
+    // === 7. 开环控制处理 ===
+    if (motor->mode == FOC_MODE_OPEN_LOOP) {
+        // 使用 target 作为电角速度(rad/s)并积分到开环角度
+        motor->open_loop_angle += motor->target * dt;
+        if (motor->open_loop_angle >= FOC_2PI) motor->open_loop_angle -= FOC_2PI;
+        if (motor->open_loop_angle < 0.0f) motor->open_loop_angle += FOC_2PI;
+
+        float cos_open = cosf(motor->open_loop_angle);
+        float sin_open = sinf(motor->open_loop_angle);
+        float v_alpha, v_beta;
+        FOC_InvPark(0.0f, motor->open_loop_voltage, cos_open, sin_open, &v_alpha, &v_beta);
+        
+        // 直接生成SVPWM
+        float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
+        FOC_SVPWM(v_alpha, v_beta, vdc, &motor->va, &motor->vb, &motor->vc);
+        
+        // 输出到硬件
+        if (motor->hal.set_voltages) {
+            motor->hal.set_voltages(motor->va, motor->vb, motor->vc);
+        }
+        return; // 开环模式直接返回，跳过后续闭环处理
+    }
+    
+    // === 8. 反Park变换 ===
     float v_alpha, v_beta;
     FOC_InvPark(motor->vd, motor->vq, cos_theta, sin_theta, &v_alpha, &v_beta);
     
-    // === 8. SVPWM ===
+    // === 9. SVPWM ===
     float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
     FOC_SVPWM(v_alpha, v_beta, vdc, &motor->va, &motor->vb, &motor->vc);
     
-    // === 9. 输出到硬件 ===
+    // === 10. 输出到硬件 ===
     if (motor->hal.set_voltages) {
         motor->hal.set_voltages(motor->va, motor->vb, motor->vc);
     }
@@ -523,6 +595,20 @@ void FOC_AttachDefaultHAL(FOC_Motor_t *motor)
         .read_currents = default_board_read_currents,
         .set_voltages = default_board_set_voltages,
         .get_bus_voltage = default_board_get_bus_voltage,
+        .get_velocity = default_board_get_velocity,
+    };
+    FOC_SetHAL(motor, &hal);
+}
+
+void FOC_AttachMotor2HAL(FOC_Motor_t *motor)
+{
+    if (!motor) return;
+    FOC_HAL_t hal = {
+        .read_angle = motor2_read_angle,
+        .read_currents = motor2_read_currents,
+        .set_voltages = motor2_set_voltages,
+        .get_bus_voltage = motor2_get_bus_voltage,
+        .get_velocity = motor2_get_velocity,
     };
     FOC_SetHAL(motor, &hal);
 }
@@ -568,3 +654,32 @@ void FOC_CalibrateDirection(FOC_Motor_t *motor)
     float d = FOC_NormalizeAngle(angle1 - angle0);
     motor->sensor_direction = (d >= 0.0f) ? 1 : -1;
 }
+
+// === 开环控制函数 ===
+
+/**
+ * @brief 设置开环控制电压
+ */
+void FOC_SetOpenLoopVoltage(FOC_Motor_t *motor, float voltage)
+{
+    if (!motor) return;
+    motor->open_loop_voltage = voltage;
+    // 限制电压
+    if (motor->open_loop_voltage > motor->voltage_limit) {
+        motor->open_loop_voltage = motor->voltage_limit;
+    }
+    if (motor->open_loop_voltage < -motor->voltage_limit) {
+        motor->open_loop_voltage = -motor->voltage_limit;
+    }
+}
+
+/**
+ * @brief 设置开环控制角度
+ */
+void FOC_SetOpenLoopAngle(FOC_Motor_t *motor, float angle)
+{
+    if (!motor) return;
+    motor->open_loop_angle = FOC_NormalizeAngle(angle);
+}
+
+

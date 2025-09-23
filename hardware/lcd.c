@@ -843,8 +843,4 @@ void LCD_Debug(void)
  * @brief LCD菜单显示 		
  * 
  */
-void windowMenu (void){
-	char text[50];
-	sprintf (text,"roll:%.2f",imu.roll);
-	LCD_ShowString(20,20,(uint8_t*)text,RED,BLACK,16,0);
-}
+
