@@ -1,7 +1,8 @@
 #include "vofa.h"
+#include "arm_math.h"
 //vofa+电流环调参
 void vofa_currentLoop(void){
-printf("iq_tgt:%.3f,%.3f,%.3f,%.3f,%.2f\n", motor1.target, FOC_GetCurrent_D(&motor1), FOC_GetCurrent_Q(&motor1),  AS5600_GetAngleRad(&as5600_r), AS5600_GetVelRPM(&as5600_r));
+printf("iq_tgt:%.3f,%.3f,%.3f,%.3f,%.2f,%.3f,%.3f,%.3f\n", motor1.target, FOC_GetCurrent_D(&motor1), FOC_GetCurrent_Q(&motor1),  AS5600_GetAngleRad(&as5600_l), AS5600_GetVelRPM(&as5600_l),motor1.ia, motor1.ib, motor1.ic);
 }
 //vofa+速度环调参
 void vofa_velocityLoop(void){
@@ -18,8 +19,8 @@ void vofa_openLoop_m2(void){
     FOC_Clarke(motor2.ia, motor2.ib, motor2.ic, &i_alpha, &i_beta);
 
     // 使用开环角度计算dq，便于判断相序与极性
-    float cos_open = cosf(motor2.open_loop_angle);
-    float sin_open = sinf(motor2.open_loop_angle);
+    float cos_open = arm_cos_f32(motor2.open_loop_angle);
+    float sin_open = arm_sin_f32(motor2.open_loop_angle);
     float id_ol = 0.0f, iq_ol = 0.0f;
     FOC_Park(i_alpha, i_beta, cos_open, sin_open, &id_ol, &iq_ol);
 
@@ -38,3 +39,7 @@ void vofa_openLoop_m2(void){
     );
 }
 
+void vofa_currentLoop_Allmotor(void){
+printf("all_motor:%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.3f,%.3f,%.3f,%.3f\n",
+motor1.target,motor2.target, FOC_GetCurrent_D(&motor1), FOC_GetCurrent_Q(&motor1), FOC_GetCurrent_D(&motor2), FOC_GetCurrent_Q(&motor2), AS5600_GetAngleRad(&as5600_l),AS5600_GetAngleRad(&as5600_r),AS5600_GetVelRad(&as5600_l),AS5600_GetVelRad(&as5600_r));
+}

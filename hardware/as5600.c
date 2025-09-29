@@ -1,53 +1,59 @@
 /*
- * as5600.c  --  全新中断驱动实现
+ * as5600.c  --  AS5600 简化驱动（I2C 轮询，超级稳定）
+ * 仅面向 FOC：提供机械角度(rad)、速度(rad/s & rpm)、电角度(rad)
  */
 #include "as5600.h"
-#include "main.h"  // 添加这个包含，确保I2C1、I2C3等定义可用
 #include <math.h>
-#include <stdio.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
 #endif
-#define AS5600_I2C_ADDR (0x36 << 1)
-#define AS5600_REG_ANGLE_H 0x0E
 
-/* --- 本地变量 --- */
-static AS5600_t *s_instances[2] = {0};   /* 最多支持 I2C1 / I2C3 两只编码器 */
+/* 内部函数声明 */
+#define MAX_AS5600_INSTANCES 4
+static AS5600_t *s_instances[MAX_AS5600_INSTANCES] = {0};
 
-/* 前置声明 */
-static void     AS5600_StartRead_IT(AS5600_t *enc);
-static AS5600_t *AS5600_FromHi2c(I2C_HandleTypeDef *hi2c);
+static void start_it_read(AS5600_t *enc);
+static AS5600_t *find_instance(I2C_HandleTypeDef *hi2c);
+static void update_kinematics(AS5600_t *enc, uint16_t raw_angle);
 
-/* ---------------- API 实现 ---------------- */
+/* ---------- 公开 API 实现 ---------- */
+
 bool AS5600_Init(AS5600_t *enc, I2C_HandleTypeDef *hi2c, uint8_t pole_pairs)
 {
     if (!enc || !hi2c) return false;
-    
-    // 注册实例到静态数组
-    if (hi2c->Instance == I2C1) s_instances[0] = enc;
-    else if (hi2c->Instance == I2C3) s_instances[1] = enc;
-    
-    enc->hi2c = hi2c;
-    enc->pole_pairs = pole_pairs;
-    enc->zero_elec_offset = 0.0f;
-    enc->raw_angle = 0;
-    enc->prev_raw_angle = 0;
-    enc->mech_angle = 0.0f;
-    enc->velocity_rads = 0.0f;
-    enc->velocity_rpm = 0.0f;
-    enc->last_update_ms = HAL_GetTick();
-    enc->busy = false;
-    enc->error_cnt = 0;
-    AS5600_StartRead_IT(enc);
+
+    *enc = (AS5600_t){
+        .hi2c = hi2c,
+        .pole_pairs = pole_pairs,
+        .last_update_ms = HAL_GetTick(),
+        .busy = false,
+        // .error_cnt = 0,  // 移除错误计数初始化
+    };
+
+    for (int i = 0; i < MAX_AS5600_INSTANCES; ++i) {
+        if (s_instances[i] == NULL) {
+            s_instances[i] = enc;
+            break;
+        }
+    }
+
     return true;
 }
 
 void AS5600_Process(AS5600_t *enc)
 {
     if (!enc) return;
+
+    uint32_t now = HAL_GetTick();
+    // 简单超时重置，不累计错误
+    if (enc->busy && (now - enc->io_start_ms > 20)) {
+        enc->busy = false;
+        // 移除 enc->error_cnt++;
+    }
+
     if (!enc->busy && HAL_I2C_GetState(enc->hi2c) == HAL_I2C_STATE_READY) {
-        AS5600_StartRead_IT(enc);
+        start_it_read(enc);
     }
 }
 
@@ -55,89 +61,93 @@ void AS5600_Reset(AS5600_t *enc)
 {
     if (!enc) return;
     enc->busy = false;
-    enc->error_cnt = 0;
-    AS5600_StartRead_IT(enc);
+    // enc->error_cnt = 0;  // 移除错误计数重置
+    enc->velocity_rads = 0.0f;
+    enc->velocity_rpm = 0.0f;
+    enc->last_mech_angle = enc->mech_angle;
 }
 
-/* ---- 获取函数 ---- */
+/* ---------- Getters ---------- */
 uint16_t AS5600_GetRawAngle(AS5600_t *enc) { return enc ? enc->raw_angle : 0; }
-float    AS5600_GetAngleRad(AS5600_t *enc) { return enc ? enc->mech_angle : 0.0f; } // 去掉反转角度方向
-/* 获取电角度 (rad) */
+float AS5600_GetAngleRad(AS5600_t *enc) { return enc ? enc->mech_angle : 0.0f; }
+float AS5600_GetVelRad(AS5600_t *enc) { return enc ? enc->velocity_rads : 0.0f; }
+float AS5600_GetVelRPM(AS5600_t *enc) { return enc ? enc->velocity_rpm : 0.0f; }
+// uint8_t AS5600_GetErrorCount(AS5600_t *enc) { return enc ? enc->error_cnt : 0; }  // 移除错误计数API
+
 float AS5600_GetElecRad(AS5600_t *enc)
 {
-    float elec_angle = fmodf(enc->mech_angle * enc->pole_pairs + enc->zero_elec_offset, TWO_PI);
-    
-    /* 规范化到 [0, 2π) */
-    if (elec_angle < 0) elec_angle += TWO_PI;
-    
-    return elec_angle;
+    if (!enc) return 0.0f;
+    float elec_angle = fmodf(enc->mech_angle * enc->pole_pairs - enc->zero_elec_offset, TWO_PI);
+    return elec_angle < 0 ? elec_angle + TWO_PI : elec_angle;
 }
 
-float    AS5600_GetVelRad  (AS5600_t *enc) { return enc ? enc->velocity_rads : 0.0f; } // 顺时针为正
-float    AS5600_GetVelRPM  (AS5600_t *enc) { return enc ? enc->velocity_rpm  : 0.0f; }
 
-/* ---------------- 内部实现 ---------------- */
-static void AS5600_StartRead_IT(AS5600_t *enc)
+/* ---------- 内部函数实现 ---------- */
+
+static void start_it_read(AS5600_t *enc)
 {
     if (!enc || enc->busy) return;
+
     enc->busy = true;
+    enc->io_start_ms = HAL_GetTick();
     uint8_t reg = AS5600_REG_ANGLE_H;
     HAL_I2C_Mem_Read_IT(enc->hi2c, AS5600_I2C_ADDR, reg, I2C_MEMADD_SIZE_8BIT, enc->i2c_buf, 2);
 }
 
-/* ------ HAL 回调 ------ */
+static void update_kinematics(AS5600_t *enc, uint16_t raw_angle)
+{
+    enc->raw_angle = raw_angle;
+    float new_mech_angle = (float)raw_angle * (TWO_PI / 4096.0f);
+
+    uint32_t now_ms = HAL_GetTick();
+    float dt = (now_ms - enc->last_update_ms) * 0.001f;
+
+    if (dt > 1e-4f && dt < 0.1f) {
+        float angle_diff = new_mech_angle - enc->last_mech_angle;
+        if (fabsf(angle_diff) > M_PI) {
+            angle_diff = (angle_diff > 0) ? angle_diff - TWO_PI : angle_diff + TWO_PI;
+        }
+        float vel_raw = angle_diff / dt;
+        enc->velocity_rads = 0.12f * vel_raw + 0.88f * enc->velocity_rads; /* LPF */
+        enc->velocity_rpm = enc->velocity_rads * 30.0f / M_PI;
+    }
+
+    enc->mech_angle = new_mech_angle;
+    enc->last_mech_angle = new_mech_angle;
+    enc->last_update_ms = now_ms;
+}
+
+/* ---------- HAL I2C 回调 ---------- */
+static AS5600_t *find_instance(I2C_HandleTypeDef *hi2c)
+{
+    AS5600_t *candidate = NULL;
+    for (int i = 0; i < MAX_AS5600_INSTANCES; ++i) {
+        if (s_instances[i] && s_instances[i]->hi2c == hi2c) {
+            if (s_instances[i]->busy) {
+                return s_instances[i];
+            }
+            candidate = s_instances[i];
+        }
+    }
+    return candidate;
+}
+
 void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
-    AS5600_t *enc = AS5600_FromHi2c(hi2c);
-    if (!enc || enc->hi2c != hi2c) return;
+    AS5600_t *enc = find_instance(hi2c);
+    if (!enc) return;
     enc->busy = false;
-
-    // 正确拼接高低字节
-    uint16_t value = ((uint16_t)enc->i2c_buf[0] << 8) | enc->i2c_buf[1];
-    value &= 0x0FFF; // 12位有效
-
-    // 机械角度
-    enc->prev_raw_angle = enc->raw_angle;
-    enc->raw_angle = value;
-    enc->mech_angle = (float)enc->raw_angle * (TWO_PI / 4096.0f);
-    
-    // 计算速度 - 使用实际时间间隔而不是固定值
-    uint32_t current_time = HAL_GetTick();
-    float dt_s = (current_time - enc->last_update_ms) * 0.001f; // 转换为秒
-    
-    // 防止除零和异常时间间隔
-    if (dt_s > 0.0001f && dt_s < 0.1f) { // 限制时间间隔在0.1ms到100ms之间
-            float angle_diff = enc->mech_angle - enc->last_mech_angle;
-            
-            // 处理角度跳跃（0-2π边界）
-            if (angle_diff > M_PI) angle_diff -= TWO_PI;
-            else if (angle_diff < -M_PI) angle_diff += TWO_PI;
-            
-    // 一阶低通滤波降低量化噪声
-    const float alpha = 0.1f; // 0..1, 越小越平滑
-    float vel_raw = angle_diff / dt_s;
-    enc->velocity_rads = alpha * vel_raw + (1.0f - alpha) * enc->velocity_rads;
-            enc->velocity_rpm = enc->velocity_rads * 30.0f / M_PI;
-    }
-    
-    enc->last_mech_angle = enc->mech_angle;
-    enc->last_update_ms = current_time;
+    uint16_t raw = ((uint16_t)enc->i2c_buf[0] << 8 | enc->i2c_buf[1]) & 0x0FFF;
+    update_kinematics(enc, raw);
 }
 
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 {
-    AS5600_t *enc = AS5600_FromHi2c(hi2c);
+    AS5600_t *enc = find_instance(hi2c);
     if (!enc) return;
-
     enc->busy = false;
-    enc->error_cnt++;
-    /* 不在中断里复位 I2C，只计数，交给 Process 处理 */
-    }
-    
-/* ----------------- 辅助函数 ----------------- */
-static AS5600_t *AS5600_FromHi2c(I2C_HandleTypeDef *hi2c)
-{
-    if (hi2c->Instance == I2C1) return s_instances[0];
-    if (hi2c->Instance == I2C3) return s_instances[1];
-    return NULL;
+    // 移除错误累计，只重置busy状态
+    // enc->error_cnt++;
 }
+
+

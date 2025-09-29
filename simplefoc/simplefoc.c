@@ -12,11 +12,12 @@
  * 5. SVPWM(αβ->abc)
  */
 #include "simplefoc.h"
+#include <math.h>
+#include "arm_math.h"
 #include <string.h>
 #include <stdio.h>
 #include "tim.h"
-#include "adc_measure.h"
-#include "as5600.h"
+#include "allfile.h" 
 
 extern AS5600_t as5600_l; 
 extern AS5600_t as5600_r; 
@@ -89,10 +90,12 @@ static float motor2_read_angle(void)
 static void motor2_read_currents(float *ia, float *ib, float *ic)
 {
     if (!ia || !ib || !ic) return;
-    // Read motor2 currents from ADC layer (A/B already mapped)
-    *ia = ADC_Get_Phase_Current_A_Motor2();
-    *ib = ADC_Get_Phase_Current_B_Motor2();
+    float ia_raw = ADC_Get_Phase_Current_A_Motor2();
+    float ib_raw = ADC_Get_Phase_Current_B_Motor2();
+    *ia = ib_raw;
+    *ib = ia_raw;
     *ic = -(*ia + *ib);
+ 
 }
 
 static void motor2_set_voltages(float va, float vb, float vc)
@@ -141,9 +144,9 @@ float FOC_NormalizeAngle(float angle)
  * @param alpha, beta 输出αβ轴电流
  */
 void FOC_Clarke(float ia, float ib, float ic, float *alpha, float *beta)
-{    
-    *alpha = ia;
-    *beta = FOC_INV_SQRT3 * (ib - ic);
+{
+    (void)ic; // CMSIS-DSP Clarke 仅需 Ia/Ib；ic 由 Ia/Ib 决定
+    arm_clarke_f32(ia, ib, alpha, beta);
 }
 
 /**
@@ -154,12 +157,8 @@ void FOC_Clarke(float ia, float ib, float ic, float *alpha, float *beta)
  */
 void FOC_Park(float alpha, float beta, float cos_theta, float sin_theta, float *d, float *q)
 {
-    // 标准Park变换矩阵
-    // [d] = [ cos(θ)  sin(θ)] [α]
-    // [q]   [-sin(θ)  cos(θ)] [β]
-    
-    *d =  alpha * cos_theta + beta * sin_theta;
-    *q = -alpha * sin_theta + beta * cos_theta;
+    // CMSIS-DSP: arm_park_f32(Ialpha, Ibeta, pId, pIq, sinVal, cosVal)
+    arm_park_f32(alpha, beta, d, q, sin_theta, cos_theta);
 }
 
 /**
@@ -170,9 +169,8 @@ void FOC_Park(float alpha, float beta, float cos_theta, float sin_theta, float *
  */
 void FOC_InvPark(float d, float q, float cos_theta, float sin_theta, float *alpha, float *beta)
 {
-   
-    *alpha = d * cos_theta - q * sin_theta;
-    *beta  = d * sin_theta + q * cos_theta;
+    // CMSIS-DSP: arm_inv_park_f32(Id, Iq, pIalpha, pIbeta, sinVal, cosVal)
+    arm_inv_park_f32(d, q, alpha, beta, sin_theta, cos_theta);
 }
 
 /**
@@ -303,11 +301,11 @@ bool FOC_Init(FOC_Motor_t *motor, uint8_t pole_pairs)
     motor->open_loop_voltage = 0.0f;
     motor->open_loop_angle = 0.0f;
     
-    // 初始化PID控制器 
-    FOC_PID_Init(&motor->pid_id,1.5f, 40.0f, 0.0f, motor->voltage_limit);
-    FOC_PID_Init(&motor->pid_iq,1.5f, 40.0f, 0.0f, motor->voltage_limit);
-    FOC_PID_Init(&motor->pid_vel, 0.2f, 4.0f, 0.0f, motor->current_limit);
-    FOC_PID_Init(&motor->pid_pos, 20.0f, 0.0f, 0.1f, 100.0f);
+    // 初始化PID控制器（针对20kHz控制频率优化，减少电流尖峰）
+    FOC_PID_Init(&motor->pid_id, 1.2f, 80.0f, 0.0f, motor->voltage_limit);   // 降低Kp和Ki，减少超调
+    FOC_PID_Init(&motor->pid_iq, 1.2f, 80.0f, 0.0f, motor->voltage_limit);   // 降低Kp和Ki，减少超调  
+    FOC_PID_Init(&motor->pid_vel, 0.2f, 2.0f, 0.0f, motor->current_limit);   // 速度环保持不变
+    FOC_PID_Init(&motor->pid_pos, 20.0f, 0.0f, 0.1f, 100.0f);                // 位置环保持不变
     
     return true;
 }
@@ -399,92 +397,6 @@ static void FOC_CurrentControl(FOC_Motor_t *motor, float target_iq, float dt)
     }
 }
 
-/**
- * @brief FOC主更新函数
- */
-void FOC_Update(FOC_Motor_t *motor)
-{
-    if (!motor || !motor->initialized) return;
-    
-    // 固定控制周期（由TIM5以20kHz调度）
-    const float dt = 0.00005f;
-    
-    // === 1. 传感器数据采集 ===
-    if (motor->hal.read_angle) {
-        motor->angle_mech = motor->sensor_direction * motor->hal.read_angle();
-    }
-    
-    if (motor->hal.read_currents) {
-        motor->hal.read_currents(&motor->ia, &motor->ib, &motor->ic);
-    }
-    
-    // === 2. 速度计算 ===
-    FOC_ComputeVelocity(motor, dt);
-
-    // === 3. 电角度计算 ===
-    motor->angle_elec = fmodf(motor->angle_mech * motor->pole_pairs + motor->elec_zero_offset, FOC_2PI);
-    if (motor->angle_elec < 0.0f) motor->angle_elec += FOC_2PI;
-    
-    // === 4. Clarke变换 ===
-    float i_alpha, i_beta;
-    FOC_Clarke(motor->ia, motor->ib, motor->ic, &i_alpha, &i_beta);
-    
-    // === 5. Park变换 ===
-    float cos_theta = cosf(motor->angle_elec);
-    float sin_theta = sinf(motor->angle_elec);
-    FOC_Park(i_alpha, i_beta, cos_theta, sin_theta, &motor->id, &motor->iq);
-    
-    // === 6. 控制环计算 ===
-    FOC_OuterControl(motor, dt);
-    
-    // === 7. 开环控制处理 ===
-    if (motor->mode == FOC_MODE_OPEN_LOOP) {
-        // 使用 target 作为电角速度(rad/s)并积分到开环角度
-        motor->open_loop_angle += motor->target * dt;
-        if (motor->open_loop_angle >= FOC_2PI) motor->open_loop_angle -= FOC_2PI;
-        if (motor->open_loop_angle < 0.0f) motor->open_loop_angle += FOC_2PI;
-
-        float cos_open = cosf(motor->open_loop_angle);
-        float sin_open = sinf(motor->open_loop_angle);
-        float v_alpha, v_beta;
-        FOC_InvPark(0.0f, motor->open_loop_voltage, cos_open, sin_open, &v_alpha, &v_beta);
-        
-        // 直接生成SVPWM
-        float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
-        FOC_SVPWM(v_alpha, v_beta, vdc, &motor->va, &motor->vb, &motor->vc);
-        
-        // 输出到硬件
-        if (motor->hal.set_voltages) {
-            motor->hal.set_voltages(motor->va, motor->vb, motor->vc);
-        }
-        return; // 开环模式直接返回，跳过后续闭环处理
-    }
-    
-    // === 8. 反Park变换 ===
-    float v_alpha, v_beta;
-    FOC_InvPark(motor->vd, motor->vq, cos_theta, sin_theta, &v_alpha, &v_beta);
-    
-    // === 9. SVPWM ===
-    float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
-    FOC_SVPWM(v_alpha, v_beta, vdc, &motor->va, &motor->vb, &motor->vc);
-    
-    // === 10. 输出到硬件 ===
-    if (motor->hal.set_voltages) {
-        motor->hal.set_voltages(motor->va, motor->vb, motor->vc);
-    }
-    
-    // === 10. 安全保护 ===
-    float current_magnitude = sqrtf(motor->id * motor->id + motor->iq * motor->iq);
-    if (current_magnitude > motor->current_limit * 1.2f) {
-        // 过流保护：停止输出并重置积分项
-        if (motor->hal.set_voltages) {
-            motor->hal.set_voltages(0.0f, 0.0f, 0.0f);
-        }
-        FOC_PID_Reset(&motor->pid_id);
-        FOC_PID_Reset(&motor->pid_iq);
-        FOC_PID_Reset(&motor->pid_vel);
-    }
-}
 
 /**
  * @brief 电角度零点校准
@@ -638,8 +550,8 @@ void FOC_CalibrateDirection(FOC_Motor_t *motor)
 
     // 沿着+电角方向小幅转动
     float theta = 0.35f; // ~20deg
-    float cos1 = cosf(theta);
-    float sin1 = sinf(theta);
+    float cos1 = arm_cos_f32(theta);
+    float sin1 = arm_sin_f32(theta);
     FOC_InvPark(v_align, 0.0f, cos1, sin1, &alpha, &beta);
     FOC_SVPWM(alpha, beta, vdc, &va, &vb, &vc);
     motor->hal.set_voltages(va, vb, vc);
@@ -680,6 +592,112 @@ void FOC_SetOpenLoopAngle(FOC_Motor_t *motor, float angle)
 {
     if (!motor) return;
     motor->open_loop_angle = FOC_NormalizeAngle(angle);
+}
+
+void FOC_UpdateCurrentLoop(FOC_Motor_t *motor, float dt)
+{
+    if (!motor || !motor->initialized) return;
+
+    if (motor->mode == FOC_MODE_OPEN_LOOP) {
+        motor->open_loop_angle += motor->target * dt;
+        if (motor->open_loop_angle >= FOC_2PI) motor->open_loop_angle -= FOC_2PI;
+        if (motor->open_loop_angle < 0.0f) motor->open_loop_angle += FOC_2PI;
+
+        float cos_open = arm_cos_f32(motor->open_loop_angle);
+        float sin_open = arm_sin_f32(motor->open_loop_angle);
+        float v_alpha, v_beta;
+        FOC_InvPark(0.0f, motor->open_loop_voltage, cos_open, sin_open, &v_alpha, &v_beta);
+
+        float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
+        FOC_SVPWM(v_alpha, v_beta, vdc, &motor->va, &motor->vb, &motor->vc);
+
+        if (motor->hal.set_voltages) {
+            motor->hal.set_voltages(motor->va, motor->vb, motor->vc);
+        }
+        return;
+    }
+
+    if (motor->hal.read_angle) {
+        motor->angle_mech = motor->sensor_direction * motor->hal.read_angle();
+    }
+    if (motor->hal.read_currents) {
+        motor->hal.read_currents(&motor->ia, &motor->ib, &motor->ic);
+    }
+
+    motor->angle_elec = fmodf(motor->angle_mech * motor->pole_pairs + motor->elec_zero_offset, FOC_2PI);
+    if (motor->angle_elec < 0.0f) motor->angle_elec += FOC_2PI;
+
+    float i_alpha, i_beta;
+    FOC_Clarke(motor->ia, motor->ib, motor->ic, &i_alpha, &i_beta);
+
+    float cos_theta = arm_cos_f32(motor->angle_elec);
+    float sin_theta = arm_sin_f32(motor->angle_elec);
+    FOC_Park(i_alpha, i_beta, cos_theta, sin_theta, &motor->id, &motor->iq);
+
+    float target_iq = (motor->mode == FOC_MODE_TORQUE) ? motor->target : motor->target_iq_ref;
+    if (target_iq > motor->current_limit) target_iq = motor->current_limit;
+    if (target_iq < -motor->current_limit) target_iq = -motor->current_limit;
+
+    FOC_CurrentControl(motor, target_iq, dt);
+
+    float v_alpha, v_beta;
+    FOC_InvPark(motor->vd, motor->vq, cos_theta, sin_theta, &v_alpha, &v_beta);
+
+    float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
+    FOC_SVPWM(v_alpha, v_beta, vdc, &motor->va, &motor->vb, &motor->vc);
+
+    if (motor->hal.set_voltages) {
+        motor->hal.set_voltages(motor->va, motor->vb, motor->vc);
+    }
+
+    float current_magnitude_sq = motor->id * motor->id + motor->iq * motor->iq;
+    float current_magnitude = 0.0f;
+    arm_sqrt_f32(current_magnitude_sq, &current_magnitude);
+    if (current_magnitude > motor->current_limit * 1.2f) {
+        if (motor->hal.set_voltages) {
+            motor->hal.set_voltages(0.0f, 0.0f, 0.0f);
+        }
+        FOC_PID_Reset(&motor->pid_id);
+        FOC_PID_Reset(&motor->pid_iq);
+    }
+}
+
+void FOC_UpdateOuterLoop(FOC_Motor_t *motor, float dt)
+{
+    if (!motor || !motor->initialized) return;
+
+    if (motor->hal.read_angle) {
+        motor->angle_mech = motor->sensor_direction * motor->hal.read_angle();
+    }
+
+    FOC_ComputeVelocity(motor, dt);
+
+    float target_iq = motor->target;
+
+    switch (motor->mode) {
+        case FOC_MODE_TORQUE:
+            target_iq = motor->target;
+            break;
+        case FOC_MODE_VELOCITY: {
+            float vel_error = motor->target - motor->velocity;
+            target_iq = FOC_PID_Update(&motor->pid_vel, vel_error, dt);
+            break;
+        }
+        case FOC_MODE_POSITION: {
+            float pos_error = FOC_NormalizeAngle(motor->target - motor->angle_mech);
+            float target_vel = FOC_PID_Update(&motor->pid_pos, pos_error, dt);
+            float vel_error = target_vel - motor->velocity;
+            target_iq = FOC_PID_Update(&motor->pid_vel, vel_error, dt);
+            break;
+        }
+        case FOC_MODE_OPEN_LOOP:
+            break;
+    }
+
+    if (target_iq > motor->current_limit) target_iq = motor->current_limit;
+    if (target_iq < -motor->current_limit) target_iq = -motor->current_limit;
+
+    motor->target_iq_ref = target_iq;
 }
 
 

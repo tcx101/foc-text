@@ -7,6 +7,7 @@
         "serial.h": "c",
         "as5600.h": "c",
         "jy60.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "blance.h": "c"
     }
 }

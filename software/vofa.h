@@ -11,4 +11,5 @@ void vofa_currentLoop(void);
 void vofa_velocityLoop(void);
 void vofa_currentLoop_m2(void);
 void vofa_openLoop_m2(void);
+void vofa_currentLoop_Allmotor(void);
 #endif

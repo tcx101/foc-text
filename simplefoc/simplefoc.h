@@ -61,6 +61,7 @@ typedef struct {
     float current_limit;    // 电流限制(A)
     FOC_Mode_t mode;        // 控制模式
     float target;           // 目标值
+    float target_iq_ref;    // 外环计算得到的电流环目标(A)
     
     // 开环控制参数
     float open_loop_voltage; // 开环电压(V)
@@ -105,7 +106,8 @@ typedef struct {
 // === 核心FOC函数 ===
 bool FOC_Init(FOC_Motor_t *motor, uint8_t pole_pairs);
 void FOC_SetHAL(FOC_Motor_t *motor, FOC_HAL_t *hal);
-void FOC_Update(FOC_Motor_t *motor);
+void FOC_UpdateCurrentLoop(FOC_Motor_t *motor, float dt);
+void FOC_UpdateOuterLoop(FOC_Motor_t *motor, float dt);
 // 默认板级HAL绑定（把板载ADC/AS5600/TIM绑定到motor->hal）
 void FOC_AttachDefaultHAL(FOC_Motor_t *motor);
 void FOC_AttachMotor2HAL(FOC_Motor_t *motor);

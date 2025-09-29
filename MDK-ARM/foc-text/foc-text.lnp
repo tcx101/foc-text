@@ -41,6 +41,7 @@
 "foc-text\blance.o"
 "foc-text\vofa.o"
 "foc-text\simplefoc.o"
+"..\Middlewares\ST\ARM\DSP\Lib\arm_cortexM4lf_math.lib"
 --library_type=microlib --strict --scatter "foc-text\foc-text.sct"
 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers

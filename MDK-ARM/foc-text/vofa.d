@@ -58,3 +58,7 @@ foc-text\vofa.o: ../hardware/jy60.h
 foc-text\vofa.o: ../software/blance.h
 foc-text\vofa.o: ../software/Allfile.h
 foc-text\vofa.o: ../software/blance.h
+foc-text\vofa.o: ../Middlewares/ST/ARM/DSP/Inc/arm_math.h
+foc-text\vofa.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+foc-text\vofa.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\float.h
+foc-text\vofa.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h

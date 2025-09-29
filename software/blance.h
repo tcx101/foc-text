@@ -18,6 +18,7 @@ typedef struct
 }IMU;
 
 extern IMU imu;//陀螺仪对象
+extern I2C_HandleTypeDef hi2c3; // 添加外部I2C3句柄声明
 
 //直立环参数设定函数
 void blance_init(vertical*pid, float kp, float kd);

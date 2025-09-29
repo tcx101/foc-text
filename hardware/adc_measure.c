@@ -1,16 +1,19 @@
 /**
  ******************************************************************************
  * @file    adc_measure.c
- * @brief   电压电流采集相关函数实现 - 电机1/电机2，滑动平均 + EMA
+ * @brief   电压电流采集相关函数实现 - 简化版低通滤波
  ******************************************************************************
  */
 
 #include "adc_measure.h"
+#include "arm_math.h"
+
 static float adc_to_current(int32_t calibrated_adc);
+
 // ADC2 DMA缓冲区：[0]=IN5, [1]=IN8（电机1）
-uint16_t adc2_dma_buffer[2] = {0};
+volatile uint16_t adc2_dma_buffer[2] = {0};
 // ADC3 DMA缓冲区：[0]=IN10, [1]=IN13（电机2）
-uint16_t adc3_dma_buffer[2] = {0};
+volatile uint16_t adc3_dma_buffer[2] = {0};
 
 // 锁存的原始ADC值（保证A/B成对一致）
 static volatile uint16_t motor1_adc_latched_a = 0;
@@ -25,34 +28,31 @@ static uint16_t motor1_adc_offset_b = 0; // ADC2 IN8 偏移值
 static uint16_t motor2_adc_offset_a = 0; // ADC3 IN10 偏移值
 static uint16_t motor2_adc_offset_b = 0; // ADC3 IN13 偏移值
 
-// 采样侧电流EMA滤波状态（在DMA回调更新，控制和显示都读该值）
+// 简化版：仅使用一级低通滤波
 static volatile float motor1_current_a_filtered = 0.0f;
 static volatile float motor1_current_b_filtered = 0.0f;
+static volatile float motor1_current_a_filtered_2 = 0.0f;
+static volatile float motor1_current_b_filtered_2 = 0.0f;
 static volatile uint8_t motor1_current_filter_inited = 0;
-#ifndef CURRENT_FILTER_ALPHA
-#define CURRENT_FILTER_ALPHA (0.12f) // 越小越平滑
-#endif
-// 电机2 EMA
+
 static volatile float motor2_current_a_filtered = 0.0f;
 static volatile float motor2_current_b_filtered = 0.0f;
+static volatile float motor2_current_a_filtered_2 = 0.0f;
+static volatile float motor2_current_b_filtered_2 = 0.0f;
 static volatile uint8_t motor2_current_filter_inited = 0;
 
+// 低通滤波参数 - 针对5kHz控制频率优化
+#ifndef CURRENT_FILTER_ALPHA
+#define CURRENT_FILTER_ALPHA (0.3f) // 截止频率约800Hz，平衡响应速度与噪声抑制
+#endif
 
-static float motor1_a_buf[CURRENT_MA_WINDOW] = {0};
-static float motor1_b_buf[CURRENT_MA_WINDOW] = {0};
-static uint16_t motor1_buf_index = 0;
-static float motor1_a_sum = 0.0f;
-static float motor1_b_sum = 0.0f;
+#ifndef CURRENT_FILTER_ALPHA_STAGE2
+#define CURRENT_FILTER_ALPHA_STAGE2 (CURRENT_FILTER_ALPHA * 0.5f) // 二级滤波，轻微增加平滑
+#endif
 
-static float motor2_a_buf[CURRENT_MA_WINDOW] = {0};
-static float motor2_b_buf[CURRENT_MA_WINDOW] = {0};
-static uint16_t motor2_buf_index = 0;
-static float motor2_a_sum = 0.0f;
-static float motor2_b_sum = 0.0f;
-
-// ADC转换完成标志
-volatile uint8_t adc2_conv_complete = 0;
-volatile uint8_t adc3_conv_complete = 0;
+// DMA转换完成标志
+static volatile uint8_t adc2_conv_complete = 0;
+static volatile uint8_t adc3_conv_complete = 0;
 
 void ADC_Measure_Init(void)
 {
@@ -85,13 +85,10 @@ void ADC_Measure_Init(void)
   // 重置滤波状态
   motor1_current_filter_inited = 0;
   motor2_current_filter_inited = 0;
-  motor1_a_sum = motor1_b_sum = 0.0f;
-  motor2_a_sum = motor2_b_sum = 0.0f;
-  motor1_buf_index = motor2_buf_index = 0;
-  for (uint16_t i = 0; i < CURRENT_MA_WINDOW; ++i) {
-    motor1_a_buf[i] = motor1_b_buf[i] = 0.0f;
-    motor2_a_buf[i] = motor2_b_buf[i] = 0.0f;
-  }
+  motor1_current_a_filtered = motor1_current_b_filtered = 0.0f;
+  motor2_current_a_filtered = motor2_current_b_filtered = 0.0f;
+  motor1_current_a_filtered_2 = motor1_current_b_filtered_2 = 0.0f;
+  motor2_current_a_filtered_2 = motor2_current_b_filtered_2 = 0.0f;
 
   // 启动DMA传输
   HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc2_dma_buffer, 2);
@@ -145,27 +142,21 @@ void ADC_DMA_ConvCpltCallback(ADC_HandleTypeDef *hadc)
     float ia_raw = adc_to_current(cal_a);
     float ib_raw = adc_to_current(cal_b);
 
-    // 滑动平均（先 MA 后 EMA）
-    motor1_a_sum -= motor1_a_buf[motor1_buf_index];
-    motor1_b_sum -= motor1_b_buf[motor1_buf_index];
-    motor1_a_buf[motor1_buf_index] = ia_raw;
-    motor1_b_buf[motor1_buf_index] = ib_raw;
-    motor1_a_sum += ia_raw;
-    motor1_b_sum += ib_raw;
-    motor1_buf_index = (motor1_buf_index + 1) % CURRENT_MA_WINDOW;
-    float ia = motor1_a_sum / (float)CURRENT_MA_WINDOW;
-    float ib = motor1_b_sum / (float)CURRENT_MA_WINDOW;
-
+    // 简化版低通滤波
     if (!motor1_current_filter_inited)
     {
-      motor1_current_a_filtered = ia;
-      motor1_current_b_filtered = ib;
+      motor1_current_a_filtered = ia_raw;
+      motor1_current_b_filtered = ib_raw;
+      motor1_current_a_filtered_2 = ia_raw;
+      motor1_current_b_filtered_2 = ib_raw;
       motor1_current_filter_inited = 1;
     }
     else
     {
-      motor1_current_a_filtered += CURRENT_FILTER_ALPHA * (ia - motor1_current_a_filtered);
-      motor1_current_b_filtered += CURRENT_FILTER_ALPHA * (ib - motor1_current_b_filtered);
+      motor1_current_a_filtered += CURRENT_FILTER_ALPHA * (ia_raw - motor1_current_a_filtered);
+      motor1_current_b_filtered += CURRENT_FILTER_ALPHA * (ib_raw - motor1_current_b_filtered);
+      motor1_current_a_filtered_2 += CURRENT_FILTER_ALPHA_STAGE2 * (motor1_current_a_filtered - motor1_current_a_filtered_2);
+      motor1_current_b_filtered_2 += CURRENT_FILTER_ALPHA_STAGE2 * (motor1_current_b_filtered - motor1_current_b_filtered_2);
     }
 
     adc2_conv_complete = 1;
@@ -181,27 +172,21 @@ void ADC_DMA_ConvCpltCallback(ADC_HandleTypeDef *hadc)
     float ia_raw = adc_to_current(cal_a);
     float ib_raw = adc_to_current(cal_b);
 
-    // 滑动平均（先 MA 后 EMA）
-    motor2_a_sum -= motor2_a_buf[motor2_buf_index];
-    motor2_b_sum -= motor2_b_buf[motor2_buf_index];
-    motor2_a_buf[motor2_buf_index] = ia_raw;
-    motor2_b_buf[motor2_buf_index] = ib_raw;
-    motor2_a_sum += ia_raw;
-    motor2_b_sum += ib_raw;
-    motor2_buf_index = (motor2_buf_index + 1) % CURRENT_MA_WINDOW;
-    float ia = motor2_a_sum / (float)CURRENT_MA_WINDOW;
-    float ib = motor2_b_sum / (float)CURRENT_MA_WINDOW;
-
+    // 简化版低通滤波
     if (!motor2_current_filter_inited)
     {
-      motor2_current_a_filtered = ia;
-      motor2_current_b_filtered = ib;
+      motor2_current_a_filtered = ia_raw;
+      motor2_current_b_filtered = ib_raw;
+      motor2_current_a_filtered_2 = ia_raw;
+      motor2_current_b_filtered_2 = ib_raw;
       motor2_current_filter_inited = 1;
     }
     else
     {
-      motor2_current_a_filtered += CURRENT_FILTER_ALPHA * (ia - motor2_current_a_filtered);
-      motor2_current_b_filtered += CURRENT_FILTER_ALPHA * (ib - motor2_current_b_filtered);
+      motor2_current_a_filtered += CURRENT_FILTER_ALPHA * (ia_raw - motor2_current_a_filtered);
+      motor2_current_b_filtered += CURRENT_FILTER_ALPHA * (ib_raw - motor2_current_b_filtered);
+      motor2_current_a_filtered_2 += CURRENT_FILTER_ALPHA_STAGE2 * (motor2_current_a_filtered - motor2_current_a_filtered_2);
+      motor2_current_b_filtered_2 += CURRENT_FILTER_ALPHA_STAGE2 * (motor2_current_b_filtered - motor2_current_b_filtered_2);
     }
 
     adc3_conv_complete = 1;
@@ -227,7 +212,7 @@ float ADC_Get_Phase_Current_A(void)
   // 优先返回采样侧滤波值；若尚未初始化，则按旧路径计算一次
   if (motor1_current_filter_inited)
   {
-    return motor1_current_a_filtered;
+    return motor1_current_a_filtered_2;
   }
   int32_t calibrated_adc = (int32_t)motor1_adc_latched_a - (int32_t)motor1_adc_offset_a;
   return adc_to_current(calibrated_adc);
@@ -237,7 +222,7 @@ float ADC_Get_Phase_Current_B(void)
 {
   if (motor1_current_filter_inited)
   {
-    return motor1_current_b_filtered;
+    return motor1_current_b_filtered_2;
   }
   int32_t calibrated_adc = (int32_t)motor1_adc_latched_b - (int32_t)motor1_adc_offset_b;
   return adc_to_current(calibrated_adc);
@@ -253,7 +238,7 @@ float ADC_Get_Phase_Current_A_Motor2(void)
 {
   if (motor2_current_filter_inited)
   {
-    return motor2_current_a_filtered;
+    return motor2_current_a_filtered_2;
   }
   int32_t calibrated_adc = (int32_t)motor2_adc_latched_a - (int32_t)motor2_adc_offset_a;
   return adc_to_current(calibrated_adc);
@@ -263,10 +248,10 @@ float ADC_Get_Phase_Current_B_Motor2(void)
 {
   if (motor2_current_filter_inited)
   {
-    return  motor2_current_b_filtered;
+    return  motor2_current_b_filtered_2;
   }
   int32_t calibrated_adc = (int32_t)motor2_adc_latched_b - (int32_t)motor2_adc_offset_b;
-  return adc_to_current(calibrated_adc);
+  return  adc_to_current(calibrated_adc);
 }
 
 float ADC_Get_Phase_Current_C_Motor2(void)
