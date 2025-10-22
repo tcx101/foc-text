@@ -251,7 +251,7 @@ float ADC_Get_Phase_Current_B_Motor2(void)
     return  motor2_current_b_filtered_2;
   }
   int32_t calibrated_adc = (int32_t)motor2_adc_latched_b - (int32_t)motor2_adc_offset_b;
-  return  adc_to_current(calibrated_adc);
+  return adc_to_current(calibrated_adc);
 }
 
 float ADC_Get_Phase_Current_C_Motor2(void)

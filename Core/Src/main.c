@@ -28,6 +28,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "Allfile.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -120,20 +121,20 @@ int main(void)
   LCD_ShowString(10, 70, "CURRENT SENSOR CALIBRATE", GREEN, BLACK, 32, 0);
   FOC_Init(&motor1, 7); // 7对极
   FOC_Init(&motor2, 7); // 7对极
-  FOC_AttachDefaultHAL(&motor1);//绑定各外�????
-  FOC_AttachMotor2HAL(&motor2); // 绑定各外�????
+  FOC_AttachDefaultHAL(&motor1);//绑定各外设
+  FOC_AttachMotor2HAL(&motor2); // 绑定各外设
   FOC_SetVoltageLimit(&motor1, 12.0f);// 12V供电
   FOC_CalibrateDirection(&motor1);//方向校准
   FOC_CalibrateZeroOffset(&motor1);//零点校准
   FOC_SetCurrentLimit(&motor1, 2.0f);//设定电流限制
-  FOC_SetMode(&motor1, FOC_MODE_TORQUE);//速度模式
+  FOC_SetMode(&motor1, FOC_MODE_TORQUE);//转矩模式
   FOC_SetTarget(&motor1, 0.0f); // 目标速度
-  FOC_SetVoltageLimit(&motor2, 12.0f); // 12V供电
-  FOC_CalibrateDirection(&motor2);       // 方向校准
-  FOC_CalibrateZeroOffset(&motor2);      // 零点校准
-  FOC_SetCurrentLimit(&motor2, 2.0f);    // 设定电流限制
-  FOC_SetMode(&motor2, FOC_MODE_TORQUE); // 转矩模式
-  FOC_SetTarget(&motor2, 0.0f);          // 目标电流
+  // FOC_SetVoltageLimit(&motor2, 12.0f); // 12V供电
+  // FOC_CalibrateDirection(&motor2);       // 方向校准
+  // FOC_CalibrateZeroOffset(&motor2);      // 零点校准
+  // FOC_SetCurrentLimit(&motor2, 2.0f);    // 设定电流限制
+  // FOC_SetMode(&motor2, FOC_MODE_TORQUE); // 转矩模式
+  // FOC_SetTarget(&motor2, 0.0f);          // 目标电流
   LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
   HAL_TIM_Base_Start_IT(&htim5); 
   HAL_TIM_Base_Start_IT(&htim9); 
@@ -143,8 +144,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-  vofa_currentLoop_Allmotor();
-  key_currentLoop();
+    vofa_currentLoop_Allmotor();
+    key_currentLoop();
+//    windowMenu (&imu);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

@@ -52,7 +52,9 @@ void AS5600_Process(AS5600_t *enc)
         // 移除 enc->error_cnt++;
     }
 
-    if (!enc->busy && HAL_I2C_GetState(enc->hi2c) == HAL_I2C_STATE_READY) {
+    // 增强检查：确保本实例不忙 且 I2C总线完全空闲
+    HAL_I2C_StateTypeDef i2c_state = HAL_I2C_GetState(enc->hi2c);
+    if (!enc->busy && i2c_state == HAL_I2C_STATE_READY) {
         start_it_read(enc);
     }
 }
@@ -60,6 +62,13 @@ void AS5600_Process(AS5600_t *enc)
 void AS5600_Reset(AS5600_t *enc)
 {
     if (!enc) return;
+    
+    // 如果I2C总线卡住，尝试中止传输
+    HAL_I2C_StateTypeDef state = HAL_I2C_GetState(enc->hi2c);
+    if (state != HAL_I2C_STATE_READY) {
+        HAL_I2C_Master_Abort_IT(enc->hi2c, AS5600_I2C_ADDR);
+    }
+    
     enc->busy = false;
     // enc->error_cnt = 0;  // 移除错误计数重置
     enc->velocity_rads = 0.0f;
@@ -72,6 +81,7 @@ uint16_t AS5600_GetRawAngle(AS5600_t *enc) { return enc ? enc->raw_angle : 0; }
 float AS5600_GetAngleRad(AS5600_t *enc) { return enc ? enc->mech_angle : 0.0f; }
 float AS5600_GetVelRad(AS5600_t *enc) { return enc ? enc->velocity_rads : 0.0f; }
 float AS5600_GetVelRPM(AS5600_t *enc) { return enc ? enc->velocity_rpm : 0.0f; }
+bool AS5600_IsBusy(AS5600_t *enc) { return enc ? enc->busy : false; }
 // uint8_t AS5600_GetErrorCount(AS5600_t *enc) { return enc ? enc->error_cnt : 0; }  // 移除错误计数API
 
 float AS5600_GetElecRad(AS5600_t *enc)
@@ -120,22 +130,19 @@ static void update_kinematics(AS5600_t *enc, uint16_t raw_angle)
 /* ---------- HAL I2C 回调 ---------- */
 static AS5600_t *find_instance(I2C_HandleTypeDef *hi2c)
 {
-    AS5600_t *candidate = NULL;
+    // 直接通过I2C句柄匹配，移除多余的busy检查避免逻辑混乱
     for (int i = 0; i < MAX_AS5600_INSTANCES; ++i) {
         if (s_instances[i] && s_instances[i]->hi2c == hi2c) {
-            if (s_instances[i]->busy) {
-                return s_instances[i];
-            }
-            candidate = s_instances[i];
+            return s_instances[i];
         }
     }
-    return candidate;
+    return NULL;
 }
 
 void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
     AS5600_t *enc = find_instance(hi2c);
-    if (!enc) return;
+    if (!enc || !enc->busy) return;  // 增加busy状态检查，确保是正在等待的实例
     enc->busy = false;
     uint16_t raw = ((uint16_t)enc->i2c_buf[0] << 8 | enc->i2c_buf[1]) & 0x0FFF;
     update_kinematics(enc, raw);
@@ -144,7 +151,7 @@ void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 {
     AS5600_t *enc = find_instance(hi2c);
-    if (!enc) return;
+    if (!enc || !enc->busy) return;  // 增加busy状态检查
     enc->busy = false;
     // 移除错误累计，只重置busy状态
     // enc->error_cnt++;

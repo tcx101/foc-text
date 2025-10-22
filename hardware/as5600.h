@@ -49,6 +49,7 @@ float AS5600_GetAngleRad(AS5600_t *enc);
 float AS5600_GetVelRad(AS5600_t *enc);
 float AS5600_GetVelRPM(AS5600_t *enc);
 float AS5600_GetElecRad(AS5600_t *enc);
+bool AS5600_IsBusy(AS5600_t *enc);  // 获取忙状态，用于调试
 // uint8_t AS5600_GetErrorCount(AS5600_t *enc); // 移除错误计数API
 
 /* 兼容旧版别名 */

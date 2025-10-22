@@ -9,27 +9,35 @@ void blance_init(vertical*pid, float kp, float kd){
 }
 //直立环
 double blance_vertical(vertical*pid, float Angle, float gx){
-    float err = pid->kp*(Angle - pid->target) +  pid->kd*gx;
-    return err;
+    float err_iq = pid->kp*(Angle - pid->target) +  pid->kd*gx;
+    return err_iq;
 }
 //控制回路
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
   if (htim == &htim9)
-  {
-    FOC_UpdateCurrentLoop(&motor1, 0.0002f);
-    FOC_UpdateCurrentLoop(&motor2, 0.0002f);
+  {//10khz电流环控制
+    FOC_UpdateCurrentLoop(&motor1, 0.0001f);
+    FOC_UpdateCurrentLoop(&motor2, 0.0001f);
   }
   else if (htim == &htim5)
-  {
-    FOC_UpdateOuterLoop(&motor1, 0.001f);
-    FOC_UpdateOuterLoop(&motor2, 0.001f);
+   {//1khz速度环位置环控制
+  //   FOC_UpdateOuterLoop(&motor1, 0.001f);
+  //   FOC_UpdateOuterLoop(&motor2, 0.001f);
   }
   else if (htim == &htim3)
   {
-    AS5600_Process(&as5600_l);
-    AS5600_Process(&as5600_r);
+      // TIM3是1kHz，轮流读取两个编码器避免I2C冲突
+      static uint8_t encoder_toggle = 0;
+      if (encoder_toggle == 0) {
+          AS5600_Process(&as5600_l);  // 奇数周期读左轮
+      } else {
+          AS5600_Process(&as5600_r);  // 偶数周期读右轮
+      }
+      encoder_toggle = !encoder_toggle;
+     imu.ax = JY60DMA_GetAccelX();
+     imu.ay = JY60DMA_GetAccelY();
   }
 
 }
@@ -44,4 +52,6 @@ void windowMenu (IMU*imu){
     LCD_ShowString(20,100,(uint8_t*)text,BLUE,BLACK,16,0);
     sprintf(text,"LD_Angle:%.2f",AS5600_GetElecRad(&as5600_l));
     LCD_ShowString(20,120,(uint8_t*)text,BLUE,BLACK,16,0);
+    sprintf(text,"R_Vel:%.2f",imu->ay);
+    LCD_ShowString(20,140,(uint8_t*)text,BLUE,BLACK,16,0);
 }

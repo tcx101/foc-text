@@ -3,7 +3,6 @@
  * @brief 标准FOC(Field Oriented Control)算法实现
  * @version 2.0
  * @date 2024
- * 
  * 严格按照FOC理论实现：
  * 1. Clarke变换(abc->αβ)
  * 2. Park变换(αβ->dq) 
@@ -400,6 +399,7 @@ static void FOC_CurrentControl(FOC_Motor_t *motor, float target_iq, float dt)
 
 /**
  * @brief 电角度零点校准
+ * @note 采用d轴对齐法，使用电压斜坡和多点采样提高精度和鲁棒性
  */
 void FOC_CalibrateZeroOffset(FOC_Motor_t *motor)
 {
@@ -409,31 +409,55 @@ void FOC_CalibrateZeroOffset(FOC_Motor_t *motor)
     float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
     float v_align = vdc * 0.2f; // 使用20%母线电压对齐
     
-    // 使用InvPark+SVPWM在电角度0进行对齐
     float alpha, beta, va, vb, vc;
-    FOC_InvPark(v_align, 0.0f, 1.0f, 0.0f, &alpha, &beta);
-    FOC_SVPWM(alpha, beta, vdc, &va, &vb, &vc);
-        motor->hal.set_voltages(va, vb, vc);
     
-    // 等待转子稳定
+    // 阶段1: 使用电压斜坡平滑对齐到电角度0，避免冲击
+    for (int step = 0; step <= 20; step++) {
+        float v_ramp = v_align * step / 20.0f;
+        FOC_InvPark(v_ramp, 0.0f, 1.0f, 0.0f, &alpha, &beta);
+        FOC_SVPWM(alpha, beta, vdc, &va, &vb, &vc);
+        motor->hal.set_voltages(va, vb, vc);
+        HAL_Delay(15); // 总共300ms斜坡上升
+    }
+    
+    // 阶段2: 保持对齐电压，等待转子完全稳定，持续更新编码器
     for (int i = 0; i < 300; i++) {
         HAL_Delay(2);
         if (motor->hal.read_angle) {
-            motor->hal.read_angle(); // 让编码器稳定
+            motor->hal.read_angle(); // 每次循环都更新编码器，避免角度跳变
+        }
     }
-}
-
-    // 读取对齐后的机械角度
-    float aligned_angle = motor->hal.read_angle();
     
-    // 计算电角度零偏移（考虑传感器方向）
+    // 阶段3: 多次采样求平均，减少测量噪声影响
+    float angle_sum = 0.0f;
+    const int samples = 50;
+    for (int i = 0; i < samples; i++) {
+        angle_sum += motor->hal.read_angle();
+        HAL_Delay(2);
+    }
+    float aligned_angle = angle_sum / samples;
+    
+    // 阶段4: 计算电角度零偏移（考虑传感器方向）
+    // 公式推导：电角度 = (机械角度 × 极对数 + 零偏移) % 2π
+    // 对齐时电角度=0，所以：零偏移 = -机械角度 × 极对数
     motor->elec_zero_offset = -(motor->sensor_direction * aligned_angle) * motor->pole_pairs;
     
-    // 标准化到[0, 2π)
-    while (motor->elec_zero_offset < 0.0f) motor->elec_zero_offset += FOC_2PI;
-    while (motor->elec_zero_offset >= FOC_2PI) motor->elec_zero_offset -= FOC_2PI;
+    // 阶段5: 归一化到[0, 2π)，使用fmodf效率更高
+    motor->elec_zero_offset = fmodf(motor->elec_zero_offset, FOC_2PI);
+    if (motor->elec_zero_offset < 0.0f) {
+        motor->elec_zero_offset += FOC_2PI;
+    }
 
-    // 停止输出
+    // 阶段6: 电压斜坡下降，平滑释放转子
+    for (int step = 20; step >= 0; step--) {
+        float v_ramp = v_align * step / 20.0f;
+        FOC_InvPark(v_ramp, 0.0f, 1.0f, 0.0f, &alpha, &beta);
+        FOC_SVPWM(alpha, beta, vdc, &va, &vb, &vc);
+        motor->hal.set_voltages(va, vb, vc);
+        HAL_Delay(8); // 总共168ms斜坡下降
+    }
+    
+    // 完全停止输出
     motor->hal.set_voltages(0.0f, 0.0f, 0.0f);
     HAL_Delay(200);
 }

@@ -21,7 +21,7 @@ void key_currentLoop(void){
         iq_target +=0.02f;  
         if (iq_target > 1.8f) iq_target = 1.8f; // 限制最大电流为 1.8A (电机最大电流的90%)
           FOC_SetTarget(&motor2,iq_target);
-        // FOC_SetTarget(&motor1,iq_target);
+          FOC_SetTarget(&motor1,iq_target);
         last_time = time;   
     } 
     // 按键2按下 - 减少目标电流
@@ -31,7 +31,7 @@ void key_currentLoop(void){
         iq_target -=0.02f;  
         if (iq_target <-1.8f) iq_target = -1.8f; // 限制最小电流为 -1.8A
          FOC_SetTarget(&motor2,iq_target);
-       // FOC_SetTarget(&motor1,iq_target);
+         FOC_SetTarget(&motor1,iq_target);
         last_time = time;   
     } 
     Key.key_last[0] = Key.key_state[0]; // 更新按键1状态
