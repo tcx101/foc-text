@@ -12,4 +12,5 @@ void vofa_velocityLoop(void);
 void vofa_currentLoop_m2(void);
 void vofa_openLoop_m2(void);
 void vofa_currentLoop_Allmotor(void);
+void as5600_show(void);
 #endif

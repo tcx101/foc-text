@@ -43,3 +43,8 @@ void vofa_currentLoop_Allmotor(void){
 printf("all_motor:%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.3f,%.3f,%.3f,%.3f\n",
 motor1.target,motor2.target, FOC_GetCurrent_D(&motor1), FOC_GetCurrent_Q(&motor1), FOC_GetCurrent_D(&motor2), FOC_GetCurrent_Q(&motor2), AS5600_GetAngleRad(&as5600_l),AS5600_GetAngleRad(&as5600_r),AS5600_GetVelRad(&as5600_l),AS5600_GetVelRad(&as5600_r));
 }
+
+void as5600_show(void){
+printf("as5600:%.3f,%.3f,%.3f,%.3f\n",AS5600_GetAngleRad(&as5600_l),AS5600_GetVelRad(&as5600_l),AS5600_GetAngleRad(&as5600_r),AS5600_GetVelRad(&as5600_r));
+
+}

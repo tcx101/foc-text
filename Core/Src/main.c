@@ -112,13 +112,13 @@ int main(void)
   LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
   JY60DMA_Init();
   ADC_Measure_Init(); /* 初始化ADC */
-  LCD_ShowString(10, 10, "ADC INIT", GREEN, BLACK, 32, 0);
+  // LCD_ShowString(10, 10, "ADC INIT", GREEN, BLACK, 32, 0);
   AS5600_Init(&as5600_l, &hi2c1, 7); // 初始化左轮编码器
   AS5600_Init(&as5600_r, &hi2c3, 7); // 初始化右轮编码器
   HAL_TIM_Base_Start_IT(&htim3);     // 启动编码器调度定时器，确保校准时角度连续更新
-  LCD_ShowString(10, 40, "AS5600 INIT", GREEN, BLACK, 32, 0);
+  // LCD_ShowString(10, 40, "AS5600 INIT", GREEN, BLACK, 32, 0);
   ADC_Calibrate_Current_Sensors(); /* 校准电流传感器和电机零点 */
-  LCD_ShowString(10, 70, "CURRENT SENSOR CALIBRATE", GREEN, BLACK, 32, 0);
+  // LCD_ShowString(10, 70, "CURRENT SENSOR CALIBRATE", GREEN, BLACK, 32, 0);
   FOC_Init(&motor1, 7); // 7对极
   FOC_Init(&motor2, 7); // 7对极
   FOC_AttachDefaultHAL(&motor1);//绑定各外设
@@ -128,15 +128,15 @@ int main(void)
   FOC_CalibrateZeroOffset(&motor1);//零点校准
   FOC_SetCurrentLimit(&motor1, 2.0f);//设定电流限制
   FOC_SetMode(&motor1, FOC_MODE_TORQUE);//转矩模式
-  FOC_SetTarget(&motor1, 0.0f); // 目标速度
-  // FOC_SetVoltageLimit(&motor2, 12.0f); // 12V供电
-  // FOC_CalibrateDirection(&motor2);       // 方向校准
-  // FOC_CalibrateZeroOffset(&motor2);      // 零点校准
-  // FOC_SetCurrentLimit(&motor2, 2.0f);    // 设定电流限制
-  // FOC_SetMode(&motor2, FOC_MODE_TORQUE); // 转矩模式
-  // FOC_SetTarget(&motor2, 0.0f);          // 目标电流
-  LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
-  HAL_TIM_Base_Start_IT(&htim5); 
+  FOC_SetTarget(&motor1, 0.0f); // 目标电流
+  FOC_SetVoltageLimit(&motor2, 12.0f); // 12V供电
+  FOC_CalibrateDirection(&motor2);       // 方向校准
+  FOC_CalibrateZeroOffset(&motor2);      // 零点校准
+  FOC_SetCurrentLimit(&motor2, 2.0f);    // 设定电流限制
+  FOC_SetMode(&motor2, FOC_MODE_TORQUE); // 转矩模式
+  FOC_SetTarget(&motor2, 0.0f);          // 目标电流
+  // LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
+  //HAL_TIM_Base_Start_IT(&htim5); 
   HAL_TIM_Base_Start_IT(&htim9); 
   /* USER CODE END 2 */
 
@@ -144,7 +144,7 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    vofa_currentLoop_Allmotor();
+    as5600_show();
     key_currentLoop();
 //    windowMenu (&imu);
     /* USER CODE END WHILE */

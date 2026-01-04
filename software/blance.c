@@ -1,6 +1,10 @@
 #include "blance.h"
 vertical vpid;//直立环环对象
 IMU imu;//陀螺仪对象
+
+// 双AS5600错开调度计数器
+static uint8_t as5600_schedule_counter = 0;
+
 //直立环参数设定
 void blance_init(vertical*pid, float kp, float kd){
     pid->kp = kp;
@@ -18,26 +22,28 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
   if (htim == &htim9)
   {//10khz电流环控制
-    FOC_UpdateCurrentLoop(&motor1, 0.0001f);
-    FOC_UpdateCurrentLoop(&motor2, 0.0001f);
+    FOC_UpdateCurrentLoop(&motor1, 0.0002f);
+    FOC_UpdateCurrentLoop(&motor2, 0.0002f);
   }
   else if (htim == &htim5)
    {//1khz速度环位置环控制
-  //   FOC_UpdateOuterLoop(&motor1, 0.001f);
-  //   FOC_UpdateOuterLoop(&motor2, 0.001f);
+    FOC_UpdateOuterLoop(&motor1, 0.001f);
+    FOC_UpdateOuterLoop(&motor2, 0.001f);
   }
   else if (htim == &htim3)
   {
-      // TIM3是1kHz，轮流读取两个编码器避免I2C冲突
-      static uint8_t encoder_toggle = 0;
-      if (encoder_toggle == 0) {
-          AS5600_Process(&as5600_l);  // 奇数周期读左轮
+    static uint8_t tim3_divider = 0;
+    tim3_divider++;
+    if (tim3_divider >= 2) {  // 250Hz / 2 = 125Hz
+      tim3_divider = 0;
+      
+      if (as5600_schedule_counter == 0) {
+        AS5600_Process(&as5600_l);  // I2C1
       } else {
-          AS5600_Process(&as5600_r);  // 偶数周期读右轮
+        AS5600_Process(&as5600_r);  // I2C3
       }
-      encoder_toggle = !encoder_toggle;
-     imu.ax = JY60DMA_GetAccelX();
-     imu.ay = JY60DMA_GetAccelY();
+      as5600_schedule_counter = !as5600_schedule_counter;
+    }
   }
 
 }
