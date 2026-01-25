@@ -7,10 +7,6 @@ extern FOC_Motor_t motor2;
 extern AS5600_t as5600_l; 
 extern AS5600_t as5600_r; 
 //函数 
+void vofa_as5600_show(void);
 void vofa_currentLoop(void);
-void vofa_velocityLoop(void);
-void vofa_currentLoop_m2(void);
-void vofa_openLoop_m2(void);
-void vofa_currentLoop_Allmotor(void);
-void as5600_show(void);
 #endif

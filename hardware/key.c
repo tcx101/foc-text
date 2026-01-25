@@ -4,11 +4,34 @@ extern FOC_Motor_t motor1;//电机对象
 extern FOC_Motor_t motor2;//电机对象
 float iq_target = 0.00f;// 目标q轴电流
 float vel_target = 0.00f; // 目标速度
-float open_loop_voltage = 1.0f; // 开环电压
-float open_loop_angle = 0.0f;   // 开环角度
 
 // 声明外部变量
-//电流环调参
+//速度环
+void key_speedLoop(void){
+    static uint32_t last_time = 0;
+    uint32_t time = HAL_GetTick();
+    Key.key_state[0] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12); // 读取按键1状态
+    Key.key_state[1] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // 读取按键2状态
+    // 按键1按下 - 增加目标电流
+    if (Key.key_state[0] == GPIO_PIN_RESET && Key.key_last[0] == GPIO_PIN_SET && (time-last_time) > 150) 
+    {
+        // 小功率电机使用更精细的步进：0.02A (原来0.05A)
+        vel_target +=10.0f;  
+        if (vel_target > 300.0f) vel_target = 300.0f; // 限制最大电流为 1.8A (电机最大电流的90%)
+        last_time = time;   
+    } 
+    // 按键2按下 - 减少目标电流
+    else if (Key.key_state[1] == GPIO_PIN_RESET && Key.key_last[1] == GPIO_PIN_SET && (time-last_time) > 150) 
+    {
+        // 小功率电机使用更精细的步进：0.02A (原来0.05A)
+        vel_target -=10.0f;  
+        if (vel_target <-300.0f) vel_target = -300.0f; // 限制最小电流为 -1.8A
+        last_time = time;   
+    } 
+    Key.key_last[0] = Key.key_state[0]; // 更新按键1状态
+    Key.key_last[1] = Key.key_state[1]; // 更新按键2状态
+}
+//电流环
 void key_currentLoop(void){
     static uint32_t last_time = 0;
     uint32_t time = HAL_GetTick();
@@ -19,9 +42,9 @@ void key_currentLoop(void){
     {
         // 小功率电机使用更精细的步进：0.02A (原来0.05A)
         iq_target +=0.02f;  
-        if (iq_target > 1.8f) iq_target = 1.8f; // 限制最大电流为 1.8A (电机最大电流的90%)
-          FOC_SetTarget(&motor2,iq_target);
-          FOC_SetTarget(&motor1,iq_target);
+        if (iq_target > 1.5f) iq_target = 1.5f; // 限制最大电流为 1.8A (电机最大电流的90%)
+        FOC_SetTarget(&motor1, iq_target); // 更新电机目标电流
+        FOC_SetTarget(&motor2, -iq_target); // 更新电机目标电流
         last_time = time;   
     } 
     // 按键2按下 - 减少目标电流
@@ -29,66 +52,13 @@ void key_currentLoop(void){
     {
         // 小功率电机使用更精细的步进：0.02A (原来0.05A)
         iq_target -=0.02f;  
-        if (iq_target <-1.8f) iq_target = -1.8f; // 限制最小电流为 -1.8A
-         FOC_SetTarget(&motor2,iq_target);
-         FOC_SetTarget(&motor1,iq_target);
-        last_time = time;   
-    } 
-    Key.key_last[0] = Key.key_state[0]; // 更新按键1状态
-    Key.key_last[1] = Key.key_state[1]; // 更新按键2状态
-}
-//速度环调参
-void key_speedLoop(void){
-    static uint32_t last_time = 0;
-    uint32_t time = HAL_GetTick();
-    Key.key_state[0] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12); // 读取按键1状态
-    Key.key_state[1] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // 读取按键2状态
-    // 按键1按下 - 增加目标电流
-    if (Key.key_state[0] == GPIO_PIN_RESET && Key.key_last[0] == GPIO_PIN_SET && (time-last_time) > 150) 
-    {
-        // 小功率电机使用更精细的步进：0.02A (原来0.05A)
-        vel_target +=5.0f;  
-        if (vel_target > 50.0f) vel_target = 50.0f; // 限制最大电流为 1.8A (电机最大电流的90%)
-         FOC_SetTarget(&motor1,vel_target);
-        last_time = time;   
-    } 
-    // 按键2按下 - 减少目标电流
-    else if (Key.key_state[1] == GPIO_PIN_RESET && Key.key_last[1] == GPIO_PIN_SET && (time-last_time) > 150) 
-    {
-        // 小功率电机使用更精细的步进：0.02A (原来0.05A)
-        vel_target -=5.0f;  
-        if (vel_target <-50.0f) vel_target = -50.0f; // 限制最小电流为 -1.8A
-        FOC_SetTarget(&motor1,vel_target);
+        if (iq_target <-1.5f) iq_target = -1.5f; // 限制最小电流为 -1.8A
+        FOC_SetTarget(&motor1, iq_target); // 更新电机目标电流
+        FOC_SetTarget(&motor2, -iq_target); // 更新电机目标电流
         last_time = time;   
     } 
     Key.key_last[0] = Key.key_state[0]; // 更新按键1状态
     Key.key_last[1] = Key.key_state[1]; // 更新按键2状态
 }
 
-//开环控制调参
-void key_openLoop(void){
-    static uint32_t last_time = 0;
-    uint32_t time = HAL_GetTick();
-    Key.key_state[0] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12); // 读取按键1状态
-    Key.key_state[1] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // 读取按键2状态
-    
-    // 按键1按下 - 增加开环电压
-    if (Key.key_state[0] == GPIO_PIN_RESET && Key.key_last[0] == GPIO_PIN_SET && (time-last_time) > 150) 
-    {
-        open_loop_voltage += 0.2f;  // 每次增加0.2V
-        if (open_loop_voltage > 6.0f) open_loop_voltage = 6.0f; // 限制最大电压为6V
-        FOC_SetOpenLoopVoltage(&motor2, open_loop_voltage);
-        last_time = time;   
-    } 
-    // 按键2按下 - 减少开环电压
-    else if (Key.key_state[1] == GPIO_PIN_RESET && Key.key_last[1] == GPIO_PIN_SET && (time-last_time) > 150) 
-    {
-        open_loop_voltage -= 0.2f;  // 每次减少0.2V
-        if (open_loop_voltage < 0.0f) open_loop_voltage = 0.0f; // 限制最小电压为0V
-        FOC_SetOpenLoopVoltage(&motor2, open_loop_voltage);
-        last_time = time;   
-    } 
-    
-    Key.key_last[0] = Key.key_state[0]; // 更新按键1状态
-    Key.key_last[1] = Key.key_state[1]; // 更新按键2状态
-}
+

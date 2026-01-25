@@ -97,30 +97,29 @@ int main(void)
   MX_DMA_Init();
   MX_TIM2_Init();
   MX_TIM4_Init();
-  MX_ADC1_Init();
   MX_ADC2_Init();
   MX_ADC3_Init();
   MX_I2C1_Init();
   MX_I2C3_Init();
   MX_USART6_UART_Init();
-  MX_TIM5_Init();
   MX_TIM3_Init();
   MX_UART4_Init();
   MX_TIM9_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
   LCD_Init();
   LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
-  JY60DMA_Init();
+  JY60_Init();
   ADC_Measure_Init(); /* 初始化ADC */
   // LCD_ShowString(10, 10, "ADC INIT", GREEN, BLACK, 32, 0);
   AS5600_Init(&as5600_l, &hi2c1, 7); // 初始化左轮编码器
   AS5600_Init(&as5600_r, &hi2c3, 7); // 初始化右轮编码器
   HAL_TIM_Base_Start_IT(&htim3);     // 启动编码器调度定时器，确保校准时角度连续更新
-  // LCD_ShowString(10, 40, "AS5600 INIT", GREEN, BLACK, 32, 0);
   ADC_Calibrate_Current_Sensors(); /* 校准电流传感器和电机零点 */
-  // LCD_ShowString(10, 70, "CURRENT SENSOR CALIBRATE", GREEN, BLACK, 32, 0);
   FOC_Init(&motor1, 7); // 7对极
   FOC_Init(&motor2, 7); // 7对极
+  //balance_init(&vpid, 0.01f, 0.0f, -29.2f); // 直立环初始化
+  //speed_init(&spid, 0.5f, 0.0f, 0.0f);        // 速度环初始化（目标速度0 rad/s）
   FOC_AttachDefaultHAL(&motor1);//绑定各外设
   FOC_AttachMotor2HAL(&motor2); // 绑定各外设
   FOC_SetVoltageLimit(&motor1, 12.0f);// 12V供电
@@ -130,13 +129,12 @@ int main(void)
   FOC_SetMode(&motor1, FOC_MODE_TORQUE);//转矩模式
   FOC_SetTarget(&motor1, 0.0f); // 目标电流
   FOC_SetVoltageLimit(&motor2, 12.0f); // 12V供电
-  FOC_CalibrateDirection(&motor2);       // 方向校准
+  FOC_CalibrateDirection(&motor2);       // 方向校准    
   FOC_CalibrateZeroOffset(&motor2);      // 零点校准
   FOC_SetCurrentLimit(&motor2, 2.0f);    // 设定电流限制
   FOC_SetMode(&motor2, FOC_MODE_TORQUE); // 转矩模式
   FOC_SetTarget(&motor2, 0.0f);          // 目标电流
-  // LCD_Fill(0, 0, LCD_W, LCD_H, BLACK);
-  //HAL_TIM_Base_Start_IT(&htim5); 
+  HAL_TIM_Base_Start_IT(&htim5);
   HAL_TIM_Base_Start_IT(&htim9); 
   /* USER CODE END 2 */
 
@@ -144,9 +142,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    as5600_show();
+    vofa_currentLoop();
+    //vofa_velocityLoop();
     key_currentLoop();
+    //vofa_as5600_show();
+      //printf("imu roll: %.2f,%.2f,%.3f,%.3f\n",imu.roll, imu.gx,AS5600_GetElecRad(&as5600_l),AS5600_GetVelRad(&as5600_r));
 //    windowMenu (&imu);
+  
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

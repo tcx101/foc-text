@@ -41,13 +41,13 @@ static volatile float motor2_current_a_filtered_2 = 0.0f;
 static volatile float motor2_current_b_filtered_2 = 0.0f;
 static volatile uint8_t motor2_current_filter_inited = 0;
 
-// 低通滤波参数 - 针对5kHz控制频率优化
+// 低通滤波参数 - 针对2kHz控制频率优化
 #ifndef CURRENT_FILTER_ALPHA
-#define CURRENT_FILTER_ALPHA (0.3f) // 截止频率约800Hz，平衡响应速度与噪声抑制
+#define CURRENT_FILTER_ALPHA (0.2f) 
 #endif
 
 #ifndef CURRENT_FILTER_ALPHA_STAGE2
-#define CURRENT_FILTER_ALPHA_STAGE2 (CURRENT_FILTER_ALPHA * 0.5f) // 二级滤波，轻微增加平滑
+#define CURRENT_FILTER_ALPHA_STAGE2 (CURRENT_FILTER_ALPHA * 0.4f) // 二级滤波，轻微增加平滑
 #endif
 
 // DMA转换完成标志
@@ -56,22 +56,21 @@ static volatile uint8_t adc3_conv_complete = 0;
 
 void ADC_Measure_Init(void)
 {
-  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);//触发adc采样
+  // PWM通道初始化（不再用于ADC触发）
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
-  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, __HAL_TIM_GET_AUTORELOAD(&htim2) / 2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);
+  
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 0);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
-  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, __HAL_TIM_GET_AUTORELOAD(&htim4) / 2);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
-  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
+  
   // 停止可能存在的ADC传输
   HAL_ADC_Stop_DMA(&hadc2);
   HAL_ADC_Stop_DMA(&hadc3);
@@ -90,7 +89,7 @@ void ADC_Measure_Init(void)
   motor1_current_a_filtered_2 = motor1_current_b_filtered_2 = 0.0f;
   motor2_current_a_filtered_2 = motor2_current_b_filtered_2 = 0.0f;
 
-  // 启动DMA传输
+  // 启动DMA传输（循环模式）
   HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc2_dma_buffer, 2);
   HAL_ADC_Start_DMA(&hadc3, (uint32_t *)adc3_dma_buffer, 2);
 }
@@ -130,7 +129,8 @@ void ADC_Calibrate_Current_Sensors(void)
 
 void ADC_DMA_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-  if (hadc->Instance == hadc2.Instance)
+  // 快速判断并处理，减少中断时间
+  if (hadc->Instance == ADC2)
   {
     // 锁存一对一致的A/B采样
     motor1_adc_latched_a = adc2_dma_buffer[0];
@@ -161,7 +161,7 @@ void ADC_DMA_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 
     adc2_conv_complete = 1;
   }
-  else if (hadc->Instance == hadc3.Instance)
+  else if (hadc->Instance == ADC3)
   {
     // 锁存一对一致的A/B采样
     motor2_adc_latched_a = adc3_dma_buffer[0];

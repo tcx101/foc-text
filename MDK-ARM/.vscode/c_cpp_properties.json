@@ -16,8 +16,7 @@
                 "C:\\Keil_v5\\ARM\\ARMCC\\include\\rw",
                 "d:\\stm32produce\\foc-text\\foc-text\\MDK-ARM",
                 "d:\\stm32produce\\foc-text\\foc-text\\Core\\Src",
-                "d:\\stm32produce\\foc-text\\foc-text\\Drivers\\STM32F4xx_HAL_Driver\\Src",
-                "d:\\stm32produce\\foc-text\\foc-text\\Middlewares\\ST\\ARM\\DSP\\Lib"
+                "d:\\stm32produce\\foc-text\\foc-text\\Drivers\\STM32F4xx_HAL_Driver\\Src"
             ],
             "defines": [
                 "USE_HAL_DRIVER",
