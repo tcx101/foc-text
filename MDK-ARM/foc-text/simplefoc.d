@@ -9,9 +9,6 @@ foc-text\simplefoc.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
 foc-text\simplefoc.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 foc-text\simplefoc.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\float.h
 foc-text\simplefoc.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
-foc-text\simplefoc.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
-foc-text\simplefoc.o: ../Core/Inc/tim.h
-foc-text\simplefoc.o: ../Core/Inc/main.h
 foc-text\simplefoc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h
 foc-text\simplefoc.o: ../Core/Inc/stm32f4xx_hal_conf.h
 foc-text\simplefoc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h
@@ -46,5 +43,5 @@ foc-text\simplefoc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h
 foc-text\simplefoc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
 foc-text\simplefoc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
 foc-text\simplefoc.o: ../hardware/as5600.h
-foc-text\simplefoc.o: ../hardware/adc_measure.h
-foc-text\simplefoc.o: ../Core/Inc/adc.h
+foc-text\simplefoc.o: ../Core/Inc/tim.h
+foc-text\simplefoc.o: ../Core/Inc/main.h

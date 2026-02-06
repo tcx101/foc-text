@@ -25,27 +25,24 @@ extern "C" {
 #define DELTA_PID    0  // 增量式PID
 #define POSITION_PID 1  // 位置式PID
 
-// PID控制器结构体
+// PID控制器结构体（新版本）
 typedef struct {
-    float target;       // 目标值
-    float now;          // 当前值
-    float error[3];     // 误差数组 [当前, 上次, 上上次]
-    float p, i, d;      // PID参数
-    float pout, dout, iout; // PID各项输出
-    float out;          // PID总输出
-    uint32_t pid_mode;  // PID模式 (DELTA_PID/POSITION_PID)
-    float output_limit; // 输出限制
-    float integral_limit; // 积分限幅值
-    float integral_separation_threshold; // 积分分离阈值
+    float kp;              // 比例系数
+    float ki;              // 积分系数
+    float kd;              // 微分系数
+    float integral;        // 积分累积
+    float error_prev;      // 上次误差
+    float output_limit;    // 输出限幅
 } FOC_PID_t;
 
 // 硬件抽象层接口
 typedef struct {
-    float (*read_angle)(void);                          // 读取角度(弧度)
+    float (*read_angle)(void);                          // 读取机械角度(弧度)
     void (*read_currents)(float *ia, float *ib, float *ic); // 读取三相电流
     void (*set_voltages)(float va, float vb, float vc); // 设置三相电压
     float (*get_bus_voltage)(void);                     // 获取母线电压
     float (*get_velocity)(void);                        // 获取角速度(rad/s)
+    float (*read_elec_angle)(void);                     // ⭐ 新增：直接读取预计算的电角度
 } FOC_HAL_t;
 
 // FOC控制模式
@@ -57,13 +54,16 @@ typedef enum {
 typedef struct {
     // 电机物理参数
     uint8_t pole_pairs;     // 极对数
+    float rs;               // 相电阻(Ω)
+    float ld;               // d轴电感(H)
+    float lq;               // q轴电感(H)
+    bool use_decoupling;    // 是否使用解耦控制
     
     // 控制参数
     float voltage_limit;    // 电压限制(V)
     float current_limit;    // 电流限制(A)
     FOC_Mode_t mode;        // 控制模式
     float target;           // 目标值
-    float target_iq_ref;    // 外环计算得到的电流环目标(A)
     
     // 传感器数据
     float angle_mech;       // 机械角度(rad)
@@ -86,12 +86,14 @@ typedef struct {
     // PID控制器
     FOC_PID_t pid_id;       // d轴电流环PID
     FOC_PID_t pid_iq;       // q轴电流环PID
-    FOC_PID_t velocity_pid; // 速度环PID
-
+    FOC_PID_t pid_vel;      // 速度环PID
+    FOC_PID_t pid_pos;      // 位置环PID
+    
+    // 开环控制参数
+    float open_loop_voltage; // 开环电压
+    float open_loop_angle;   // 开环角度
 
     // 内部状态
-    float angle_prev;       // 上次角度
-    uint32_t last_update_us; // 上次更新时间(微秒)
     bool initialized;       // 初始化标志
     int8_t sensor_direction; // 传感器方向(+1/-1)
     
@@ -125,9 +127,10 @@ float FOC_GetCurrent_Q(FOC_Motor_t *motor);
 float FOC_GetVelocity(FOC_Motor_t *motor);
 float FOC_GetAngle(FOC_Motor_t *motor);
 
-// === PID控制函数 ===
-void FOC_PID_Init(FOC_PID_t *pid, uint32_t mode, float p, float i, float d, float output_limit);
-float FOC_PID_Update(FOC_PID_t *pid, float target, float now);
+// === PID控制函数（新版本）===
+void FOC_PID_Init(FOC_PID_t *pid, float kp, float ki, float kd, float output_limit);
+float FOC_PID_Update(FOC_PID_t *pid, float error, float dt);
+void FOC_PID_Reset(FOC_PID_t *pid);
 
 // === 数学工具函数 ===
 float FOC_NormalizeAngle(float angle);
@@ -136,6 +139,8 @@ void FOC_Park(float alpha, float beta, float cos_theta, float sin_theta, float *
 void FOC_InvPark(float d, float q, float cos_theta, float sin_theta, float *alpha, float *beta);
 void FOC_SVPWM(float alpha, float beta, float vdc, float *va, float *vb, float *vc);
 
-
+// === 开环测试函数 ===
+void FOC_OpenLoopTest(FOC_Motor_t *motor, float voltage, float speed);
+void FOC_StopOpenLoopTest(FOC_Motor_t *motor);
 
 #endif /* __SIMPLEFOC_H__ */

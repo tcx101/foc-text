@@ -56,6 +56,10 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* USER CODE BEGIN Prototypes */
 
+// FOC电机PWM控制函数
+void TIM_SetDutyCycle_Motor1(float da, float db, float dc);
+void TIM_SetDutyCycle_Motor2(float da, float db, float dc);
+
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

@@ -88,7 +88,6 @@ void balance_vertical(vertical *pid, float angle, float gyro)
     } else if (err_iq < -motor1.current_limit) {
         err_iq = -motor1.current_limit;
     }
-    
     // 设置目标电流（左右电机反向）
     FOC_SetTarget(&motor1, err_iq);
     FOC_SetTarget(&motor2, -err_iq);
@@ -101,30 +100,20 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim == &htim9)
     {
-        //2khz电流环
-       FOC_UpdateCurrentLoop(&motor1);
-       FOC_UpdateCurrentLoop(&motor2);
+        FOC_UpdateCurrentLoop(&motor1);
+      //  FOC_UpdateCurrentLoop();
     }
     else if (htim == &htim3)
     {
         //1khz编码器加直立环
         AS5600_StartRead(&as5600_l); // 触发编码器读取
-        AS5600_StartRead(&as5600_r);
-        //balance_vertical(&vpid, imu.roll, imu.gx);
+        AS5600_StartRead(&as5600_r); 
     }
     else if (htim == &htim5)
     {
-        // // 速度环（外环）+ 陀螺仪读取 
-        // imu.roll = JY60_GetRoll();
-        // imu.gx = JY60_GetGyroX();
-        
-        // // 计算平均速度（左右轮平均）
-        // float speed_l = AS5600_GetVelRad(&as5600_l);
-        // float speed_r = AS5600_GetVelRad(&as5600_r);
-        // float avg_speed = (speed_l + speed_r) / 2.0f;
-        
-        // // 速度环控制，输出目标角度
-        // target_angle = speed_control(&spid, avg_speed);
+        // 速度环（外环）+ 陀螺仪读取 
+        imu.roll = JY60_GetRoll();
+        imu.gx = JY60_GetGyroX();
     }
 }
 

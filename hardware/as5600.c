@@ -13,7 +13,7 @@ static AS5600_t *find_instance(I2C_HandleTypeDef *hi2c);
 void AS5600_Init(AS5600_t *enc, I2C_HandleTypeDef *hi2c, uint8_t pole_pairs)
 {
     if (!enc || !hi2c) return;
-    
+
     enc->hi2c = hi2c;
     enc->pole_pairs = pole_pairs;
     enc->raw_angle = 0;
@@ -24,7 +24,9 @@ void AS5600_Init(AS5600_t *enc, I2C_HandleTypeDef *hi2c, uint8_t pole_pairs)
     enc->last_time_us = 0;
     enc->busy = false;
     enc->zero_elec_offset = 0.0f;
-    
+    enc->elec_angle = 0.0f;          // ⭐ 初始化电角度
+    enc->sensor_direction = 1;       // ⭐ 初始化传感器方向
+
     for (int i = 0; i < MAX_INSTANCES; i++) {
         if (g_instances[i] == NULL) {
             g_instances[i] = enc;
@@ -117,9 +119,21 @@ float AS5600_GetVelRPM(AS5600_t *enc)
 float AS5600_GetElecRad(AS5600_t *enc)
 {
     if (!enc) return 0.0f;
-    
+
     float elec_angle = fmodf(enc->mech_angle * enc->pole_pairs - enc->zero_elec_offset, TWO_PI);
     return elec_angle < 0 ? elec_angle + TWO_PI : elec_angle;
+}
+
+/**
+ * @brief 获取预计算的电角度（在编码器中断中已计算好）
+ * @param enc 编码器结构体指针
+ * @return 电角度（rad），范围[0, 2π)
+ * @note 这个函数直接返回在编码器中断中预计算好的电角度
+ *       相比AS5600_GetElecRad()，避免了重复计算，提高效率
+ */
+float AS5600_GetPrecomputedElecAngle(AS5600_t *enc)
+{
+    return enc ? enc->elec_angle : 0.0f;
 }
 
 static AS5600_t *find_instance(I2C_HandleTypeDef *hi2c)
@@ -136,10 +150,17 @@ void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
     AS5600_t *enc = find_instance(hi2c);
     if (!enc) return;
-    
+
     enc->busy = false;
     enc->raw_angle = ((uint16_t)enc->dma_buf[0] << 8 | enc->dma_buf[1]) & 0x0FFF;
     enc->mech_angle = (float)enc->raw_angle * (TWO_PI / 4096.0f);
+
+    float angle_with_direction = enc->mech_angle * enc->sensor_direction;
+    enc->elec_angle = fmodf(angle_with_direction * enc->pole_pairs + enc->zero_elec_offset, TWO_PI);
+    if (enc->elec_angle < 0.0f) {
+        enc->elec_angle += TWO_PI;
+    }
+
     calculate_velocity(enc);
 }
 

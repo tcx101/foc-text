@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/stm32produce/foc-text/foc-text/**)"
+    ]
+  }
+}

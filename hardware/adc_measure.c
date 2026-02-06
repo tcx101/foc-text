@@ -1,106 +1,63 @@
-/**
- ******************************************************************************
- * @file    adc_measure.c
- * @brief   电压电流采集相关函数实现 - 简化版低通滤波
- ******************************************************************************
- */
 
 #include "adc_measure.h"
-#include "arm_math.h"
+#include <string.h>
+#include <stdio.h>
 
-static float adc_to_current(int32_t calibrated_adc);
+// 零点偏移值（支持浮点数，更精确）
+static float motor1_offset_a = 0.0f;
+static float motor1_offset_b = 0.0f;
+static float motor2_offset_a = 0.0f;
+static float motor2_offset_b = 0.0f;
 
-// ADC2 DMA缓冲区：[0]=IN5, [1]=IN8（电机1）
-volatile uint16_t adc2_dma_buffer[2] = {0};
-// ADC3 DMA缓冲区：[0]=IN10, [1]=IN13（电机2）
-volatile uint16_t adc3_dma_buffer[2] = {0};
+// 滤波后的电流值（三相都需要滤波）
+static float motor1_current_a = 0.0f;
+static float motor1_current_b = 0.0f;
+static float motor1_current_c = 0.0f;  // 新增C相滤波值
+static float motor2_current_a = 0.0f;
+static float motor2_current_b = 0.0f;
+static float motor2_current_c = 0.0f;  // 新增C相滤波值
 
-// 锁存的原始ADC值（保证A/B成对一致）
-static volatile uint16_t motor1_adc_latched_a = 0;
-static volatile uint16_t motor1_adc_latched_b = 0;
-static volatile uint16_t motor2_adc_latched_a = 0;
-static volatile uint16_t motor2_adc_latched_b = 0;
 
-// 校准后的ADC零点偏移值（电机1）
-static uint16_t motor1_adc_offset_a = 0; // ADC2 IN5 偏移值
-static uint16_t motor1_adc_offset_b = 0; // ADC2 IN8 偏移值
-// 校准后的ADC零点偏移值（电机2）
-static uint16_t motor2_adc_offset_a = 0; // ADC3 IN10 偏移值
-static uint16_t motor2_adc_offset_b = 0; // ADC3 IN13 偏移值
-
-// 简化版：仅使用一级低通滤波
-static volatile float motor1_current_a_filtered = 0.0f;
-static volatile float motor1_current_b_filtered = 0.0f;
-static volatile float motor1_current_a_filtered_2 = 0.0f;
-static volatile float motor1_current_b_filtered_2 = 0.0f;
-static volatile uint8_t motor1_current_filter_inited = 0;
-
-static volatile float motor2_current_a_filtered = 0.0f;
-static volatile float motor2_current_b_filtered = 0.0f;
-static volatile float motor2_current_a_filtered_2 = 0.0f;
-static volatile float motor2_current_b_filtered_2 = 0.0f;
-static volatile uint8_t motor2_current_filter_inited = 0;
-
-// 低通滤波参数 - 针对2kHz控制频率优化
-#ifndef CURRENT_FILTER_ALPHA
-#define CURRENT_FILTER_ALPHA (0.2f) 
-#endif
-
-#ifndef CURRENT_FILTER_ALPHA_STAGE2
-#define CURRENT_FILTER_ALPHA_STAGE2 (CURRENT_FILTER_ALPHA * 0.4f) // 二级滤波，轻微增加平滑
-#endif
-
-// DMA转换完成标志
-static volatile uint8_t adc2_conv_complete = 0;
-static volatile uint8_t adc3_conv_complete = 0;
+#define FILTER_ALPHA 0.95f  
 
 void ADC_Measure_Init(void)
 {
-  // PWM通道初始化（不再用于ADC触发）
+  // 启动TIM2的PWM输出通道（CH1, CH2, CH3）
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
-  
+
+  // 启动TIM4的PWM输出通道（CH1, CH2, CH3）
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 0);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
-  
-  // 停止可能存在的ADC传输
-  HAL_ADC_Stop_DMA(&hadc2);
-  HAL_ADC_Stop_DMA(&hadc3);
 
-  // 清零ADC缓冲区
-  adc2_dma_buffer[0] = 0;
-  adc2_dma_buffer[1] = 0;
-  adc3_dma_buffer[0] = 0;
-  adc3_dma_buffer[1] = 0;
+  // 启动TIM2_CH4和TIM4_CH4用于TRGO触发ADC（PWM模式，但不输出到引脚）
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, 1050);  // 设置触发时刻（中心点）
+  __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_4, 1050);  // 设置触发时刻（中心点）
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);  // 启动CH4用于产生TRGO
+  HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);  // 启动CH4用于产生TRGO
 
-  // 重置滤波状态
-  motor1_current_filter_inited = 0;
-  motor2_current_filter_inited = 0;
-  motor1_current_a_filtered = motor1_current_b_filtered = 0.0f;
-  motor2_current_a_filtered = motor2_current_b_filtered = 0.0f;
-  motor1_current_a_filtered_2 = motor1_current_b_filtered_2 = 0.0f;
-  motor2_current_a_filtered_2 = motor2_current_b_filtered_2 = 0.0f;
+  // 启动ADC注入模式（硬件触发 - 使用TRGO）
+  HAL_ADCEx_InjectedStart_IT(&hadc2);  // ADC2注入模式，TIM2_TRGO触发
+  HAL_ADCEx_InjectedStart_IT(&hadc3);  // ADC3注入模式，TIM4_TRGO触发
 
-  // 启动DMA传输（循环模式）
-  HAL_ADC_Start_DMA(&hadc2, (uint32_t *)adc2_dma_buffer, 2);
-  HAL_ADC_Start_DMA(&hadc3, (uint32_t *)adc3_dma_buffer, 2);
+  // 启动定时器
+  HAL_TIM_Base_Start(&htim2);
+  HAL_TIM_Base_Start(&htim4);
 }
 
 void ADC_Calibrate_Current_Sensors(void)
 {
-  uint32_t sum_m1a = 0, sum_m1b = 0;
-  uint32_t sum_m2a = 0, sum_m2b = 0;
-  const int calibration_samples = 500;
+  float sum1a = 0.0f, sum1b = 0.0f, sum2a = 0.0f, sum2b = 0.0f;
 
-  // 在校准前，确保所有PWM通道输出为0（完全关闭）避免电流流动
+  // 确保PWM为0（设置CH1, CH2, CH3输出通道）
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
@@ -108,160 +65,100 @@ void ADC_Calibrate_Current_Sensors(void)
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
 
-  HAL_Delay(50); // 等待ADC DMA稳定
+  HAL_Delay(100);  // 增加稳定时间
 
-  // 采集并累加ADC原始读数
-  for (int i = 0; i < calibration_samples; i++)
+  // 采样2000次求平均（提高精度）
+  // 注入模式下，直接读取注入数据寄存器
+  for (int i = 0; i < 2000; i++)
   {
-    sum_m1a += adc2_dma_buffer[0]; // ADC2 IN5
-    sum_m1b += adc2_dma_buffer[1]; // ADC2 IN8
-    sum_m2a += adc3_dma_buffer[0]; // ADC3 IN10
-    sum_m2b += adc3_dma_buffer[1]; // ADC3 IN13
+    sum1a += (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1);
+    sum1b += (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_2);
+    sum2a += (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_1);
+    sum2b += (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_2);
     HAL_Delay(1);
   }
 
-  // 计算平均值作为ADC零点偏移
-  motor1_adc_offset_a = sum_m1a / calibration_samples;
-  motor1_adc_offset_b = sum_m1b / calibration_samples;
-  motor2_adc_offset_a = sum_m2a / calibration_samples;
-  motor2_adc_offset_b = sum_m2b / calibration_samples;
+  motor1_offset_a = sum1a / 2000.0f;
+  motor1_offset_b = sum1b / 2000.0f;
+  motor2_offset_a = sum2a / 2000.0f;
+  motor2_offset_b = sum2b / 2000.0f;
 }
 
-void ADC_DMA_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+/**
+ * @brief ADC注入转换完成回调（注入模式）
+ * @note 注入模式下，硬件触发后自动转换，转换完成后触发此中断
+ *       关键：先计算C相，再对三相同时滤波，避免C相延迟
+ */
+void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
-  // 快速判断并处理，减少中断时间
   if (hadc->Instance == ADC2)
   {
-    // 锁存一对一致的A/B采样
-    motor1_adc_latched_a = adc2_dma_buffer[0];
-    motor1_adc_latched_b = adc2_dma_buffer[1];
+    // 读取注入通道的ADC值并去零点（使用浮点数提高精度）
+    // ⭐ 交换RANK_1和RANK_2的读取，修正A、B相反接问题
+    float adc_a = (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_2) - motor1_offset_a;
+    float adc_b = (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1) - motor1_offset_b;
 
-    // 采样侧：计算并更新滤波电流
-    int32_t cal_a = (int32_t)motor1_adc_latched_a - (int32_t)motor1_adc_offset_a;
-    int32_t cal_b = (int32_t)motor1_adc_latched_b - (int32_t)motor1_adc_offset_b;
-    float ia_raw = adc_to_current(cal_a);
-    float ib_raw = adc_to_current(cal_b);
+    // 转换为电流（A）
+    float ia = adc_a * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);
+    float ib = adc_b * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);
 
-    // 简化版低通滤波
-    if (!motor1_current_filter_inited)
-    {
-      motor1_current_a_filtered = ia_raw;
-      motor1_current_b_filtered = ib_raw;
-      motor1_current_a_filtered_2 = ia_raw;
-      motor1_current_b_filtered_2 = ib_raw;
-      motor1_current_filter_inited = 1;
-    }
-    else
-    {
-      motor1_current_a_filtered += CURRENT_FILTER_ALPHA * (ia_raw - motor1_current_a_filtered);
-      motor1_current_b_filtered += CURRENT_FILTER_ALPHA * (ib_raw - motor1_current_b_filtered);
-      motor1_current_a_filtered_2 += CURRENT_FILTER_ALPHA_STAGE2 * (motor1_current_a_filtered - motor1_current_a_filtered_2);
-      motor1_current_b_filtered_2 += CURRENT_FILTER_ALPHA_STAGE2 * (motor1_current_b_filtered - motor1_current_b_filtered_2);
-    }
+    // ⭐ 关键修复：先用原始电流计算C相
+    float ic = -(ia + ib);
 
-    adc2_conv_complete = 1;
+    // 然后对三相同时滤波，保证相位一致
+    motor1_current_a += FILTER_ALPHA * (ia - motor1_current_a);
+    motor1_current_b += FILTER_ALPHA * (ib - motor1_current_b);
+    motor1_current_c += FILTER_ALPHA * (ic - motor1_current_c);
   }
   else if (hadc->Instance == ADC3)
   {
-    // 锁存一对一致的A/B采样
-    motor2_adc_latched_a = adc3_dma_buffer[0];
-    motor2_adc_latched_b = adc3_dma_buffer[1];
+    float adc_a = (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_2) - motor2_offset_a;
+    float adc_b = (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_1) - motor2_offset_b;
 
-    int32_t cal_a = (int32_t)motor2_adc_latched_a - (int32_t)motor2_adc_offset_a;
-    int32_t cal_b = (int32_t)motor2_adc_latched_b - (int32_t)motor2_adc_offset_b;
-    float ia_raw = adc_to_current(cal_a);
-    float ib_raw = adc_to_current(cal_b);
+    // 转换为电流（A）
+    float ia = adc_a * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);
+    float ib = adc_b * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);
 
-    // 简化版低通滤波
-    if (!motor2_current_filter_inited)
-    {
-      motor2_current_a_filtered = ia_raw;
-      motor2_current_b_filtered = ib_raw;
-      motor2_current_a_filtered_2 = ia_raw;
-      motor2_current_b_filtered_2 = ib_raw;
-      motor2_current_filter_inited = 1;
-    }
-    else
-    {
-      motor2_current_a_filtered += CURRENT_FILTER_ALPHA * (ia_raw - motor2_current_a_filtered);
-      motor2_current_b_filtered += CURRENT_FILTER_ALPHA * (ib_raw - motor2_current_b_filtered);
-      motor2_current_a_filtered_2 += CURRENT_FILTER_ALPHA_STAGE2 * (motor2_current_a_filtered - motor2_current_a_filtered_2);
-      motor2_current_b_filtered_2 += CURRENT_FILTER_ALPHA_STAGE2 * (motor2_current_b_filtered - motor2_current_b_filtered_2);
-    }
-
-    adc3_conv_complete = 1;
+    // ⭐ 关键修复：先用原始电流计算C相
+    float ic = -(ia + ib);
+    // 然后对三相同时滤波
+    motor2_current_a += FILTER_ALPHA * (ia - motor2_current_a);
+    motor2_current_b += FILTER_ALPHA * (ib - motor2_current_b);
+    motor2_current_c += FILTER_ALPHA * (ic - motor2_current_c);
   }
 }
 
-uint8_t ADC_Consume_Motor1_Ready(void)
+// 获取电机1电流（新接口）
+// ⭐ 关键修复：统一符号处理，确保基尔霍夫定律成立
+float ADC_Get_Motor1_Current_A(void)
 {
-  uint8_t ready = adc2_conv_complete;
-  adc2_conv_complete = 0;
-  return ready;
+  return -motor1_current_a;  // 负号根据硬件方向调整
 }
 
-uint8_t ADC_Consume_Motor2_Ready(void)
+float ADC_Get_Motor1_Current_B(void)
 {
-  uint8_t ready = adc3_conv_complete;
-  adc3_conv_complete = 0;
-  return ready;
+  return -motor1_current_b;  // 负号根据硬件方向调整
 }
 
-float ADC_Get_Phase_Current_A(void)
+float ADC_Get_Motor1_Current_C(void)
 {
-  // 优先返回采样侧滤波值；若尚未初始化，则按旧路径计算一次
-  if (motor1_current_filter_inited)
-  {
-    return motor1_current_a_filtered_2;
-  }
-  int32_t calibrated_adc = (int32_t)motor1_adc_latched_a - (int32_t)motor1_adc_offset_a;
-  return adc_to_current(calibrated_adc);
+  // ⭐ 修复：C相也取负号，与A、B相保持一致
+  return -motor1_current_c;
 }
 
-float ADC_Get_Phase_Current_B(void)
+// 获取电机2电流（新接口）
+float ADC_Get_Motor2_Current_A(void)
 {
-  if (motor1_current_filter_inited)
-  {
-    return motor1_current_b_filtered_2;
-  }
-  int32_t calibrated_adc = (int32_t)motor1_adc_latched_b - (int32_t)motor1_adc_offset_b;
-  return adc_to_current(calibrated_adc);
+  return -motor2_current_a;
 }
 
-float ADC_Get_Phase_Current_C(void)
+float ADC_Get_Motor2_Current_B(void)
 {
-  // 根据基尔霍夫电流定律 (Ia + Ib + Ic = 0)
-  return -(ADC_Get_Phase_Current_A() + ADC_Get_Phase_Current_B());
+  return -motor2_current_b;
 }
 
-float ADC_Get_Phase_Current_A_Motor2(void)
+float ADC_Get_Motor2_Current_C(void)
 {
-  if (motor2_current_filter_inited)
-  {
-    return motor2_current_a_filtered_2;
-  }
-  int32_t calibrated_adc = (int32_t)motor2_adc_latched_a - (int32_t)motor2_adc_offset_a;
-  return adc_to_current(calibrated_adc);
-}
-
-float ADC_Get_Phase_Current_B_Motor2(void)
-{
-  if (motor2_current_filter_inited)
-  {
-    return  motor2_current_b_filtered_2;
-  }
-  int32_t calibrated_adc = (int32_t)motor2_adc_latched_b - (int32_t)motor2_adc_offset_b;
-  return adc_to_current(calibrated_adc);
-}
-
-float ADC_Get_Phase_Current_C_Motor2(void)
-{
-  return -(ADC_Get_Phase_Current_A_Motor2() + ADC_Get_Phase_Current_B_Motor2());
-}
-
-static float adc_to_current(int32_t calibrated_adc)
-{
-  float voltage_calibrated = (float)calibrated_adc * (ADC_VREF / ADC_RESOLUTION);
-  float current = -voltage_calibrated / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);  
-  return current;
+  // ⭐ 修复：C相也取负号，与A、B相保持一致
+  return -motor2_current_c;
 }
