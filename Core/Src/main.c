@@ -115,24 +115,22 @@ int main(void)
   ADC_Calibrate_Current_Sensors(); /* 校准电流传感器和电机零点 */
   FOC_Init(&motor1, 7); // 7对极
   FOC_Init(&motor2, 7); // 7对极
-  //balance_init(&vpid, 0.01f, 0.0f, -29.2f); // 直立环初始化
-  //speed_init(&spid, 0.5f, 0.0f, 0.0f);        // 速度环初始化（目标速度0 rad/s）
   FOC_AttachDefaultHAL(&motor1);//绑定各外设
   FOC_AttachMotor2HAL(&motor2); // 绑定各外设
   FOC_SetVoltageLimit(&motor1, 12.0f);// 12V供电
   FOC_CalibrateDirection(&motor1);//方向校准
   FOC_CalibrateZeroOffset(&motor1);//零点校准
-  FOC_SetCurrentLimit(&motor1, 2.0f);//设定电流限制
+  FOC_SetCurrentLimit(&motor1, 1.5f);//设定电流限制
   FOC_SetMode(&motor1, FOC_MODE_TORQUE);//转矩模式
-  // FOC_SetVoltageLimit(&motor2, 12.0f); // 12V供电
-  // FOC_CalibrateDirection(&motor2);       // 方向校准    
-  // FOC_CalibrateZeroOffset(&motor2);      // 零点校准
-  // FOC_SetCurrentLimit(&motor2, 2.0f);    // 设定电流限制
-  // FOC_SetMode(&motor2, FOC_MODE_TORQUE); // 转矩模式
+  FOC_SetVoltageLimit(&motor2, 12.0f);// 12V供电
+  FOC_CalibrateDirection(&motor2);//方向校准
+  FOC_CalibrateZeroOffset(&motor2);//零点校准
+  FOC_SetCurrentLimit(&motor2, 1.5f);//设定电流限制
+  FOC_SetMode(&motor2, FOC_MODE_TORQUE);//转矩模式
   FOC_SetTarget(&motor1, 0.0f); // 设定目标转矩
   FOC_SetTarget(&motor2, 0.0f); // 设定目标转矩
   HAL_TIM_Base_Start_IT(&htim5);
-  HAL_TIM_Base_Start_IT(&htim9);  // ⭐ 必须启动TIM9，用于更新电机数据
+  HAL_TIM_Base_Start_IT(&htim9);  
   /* USER CODE END 2 */
 
   /* Infinite loop */

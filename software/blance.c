@@ -101,7 +101,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     if (htim == &htim9)
     {
         FOC_UpdateCurrentLoop(&motor1);
-      //  FOC_UpdateCurrentLoop();
+        FOC_UpdateCurrentLoop(&motor2);
     }
     else if (htim == &htim3)
     {

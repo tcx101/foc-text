@@ -371,9 +371,6 @@ void FOC_CalibrateDirection(FOC_Motor_t *motor)
  */
 void FOC_CalibrateZeroOffset(FOC_Motor_t *motor)
 {
-    if (!motor || !motor->hal.read_angle || !motor->hal.set_voltages) {
-        return;
-    }
 
     float vdc = motor->hal.get_bus_voltage ? motor->hal.get_bus_voltage() : 12.0f;
     float v_align = 3.0f;  // 对齐电压

@@ -95,8 +95,8 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
   {
     // 读取注入通道的ADC值并去零点（使用浮点数提高精度）
     // ⭐ 交换RANK_1和RANK_2的读取，修正A、B相反接问题
-    float adc_a = (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_2) - motor1_offset_a;
-    float adc_b = (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1) - motor1_offset_b;
+    float adc_a = (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1) - motor1_offset_a;
+    float adc_b = (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_2) - motor1_offset_b;
 
     // 转换为电流（A）
     float ia = adc_a * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);
@@ -112,8 +112,8 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
   }
   else if (hadc->Instance == ADC3)
   {
-    float adc_a = (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_2) - motor2_offset_a;
-    float adc_b = (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_1) - motor2_offset_b;
+    float adc_a = (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_1) - motor2_offset_a;
+    float adc_b = (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_2) - motor2_offset_b;
 
     // 转换为电流（A）
     float ia = adc_a * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);

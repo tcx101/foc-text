@@ -3,7 +3,7 @@
 <title>Static Call Graph - [foc-text\foc-text.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image foc-text\foc-text.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Fri Feb 06 20:38:35 2026
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Sat Feb 07 00:24:28 2026
 <BR><P>
 <H3>Maximum Stack Usage =        184 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -699,7 +699,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[5b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[95]"></a>FOC_CalibrateZeroOffset</STRONG> (Thumb, 420 bytes, Stack size 96 bytes, simplefoc.o(i.FOC_CalibrateZeroOffset))
+<P><STRONG><a name="[95]"></a>FOC_CalibrateZeroOffset</STRONG> (Thumb, 404 bytes, Stack size 96 bytes, simplefoc.o(i.FOC_CalibrateZeroOffset))
 <BR><BR>[Stack]<UL><LI>Max Depth = 148<LI>Call Chain = FOC_CalibrateZeroOffset &rArr; FOC_NormalizeAngle &rArr; __hardfp_fmodf &rArr; _frem &rArr; _float_epilogue
 </UL>
 <BR>[Calls]<UL><LI><a href="#[84]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;HAL_Delay
@@ -714,7 +714,7 @@ Global Symbols
 <BR><BR>[Called By]<UL><LI><a href="#[9d]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;FOC_UpdateCurrentLoop
 </UL>
 
-<P><STRONG><a name="[97]"></a>FOC_Init</STRONG> (Thumb, 132 bytes, Stack size 16 bytes, simplefoc.o(i.FOC_Init))
+<P><STRONG><a name="[97]"></a>FOC_Init</STRONG> (Thumb, 128 bytes, Stack size 16 bytes, simplefoc.o(i.FOC_Init))
 <BR><BR>[Stack]<UL><LI>Max Depth = 16<LI>Call Chain = FOC_Init
 </UL>
 <BR>[Calls]<UL><LI><a href="#[98]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_memclr4
@@ -781,7 +781,7 @@ Global Symbols
 <BR><BR>[Called By]<UL><LI><a href="#[5b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[9d]"></a>FOC_UpdateCurrentLoop</STRONG> (Thumb, 488 bytes, Stack size 40 bytes, simplefoc.o(i.FOC_UpdateCurrentLoop))
+<P><STRONG><a name="[9d]"></a>FOC_UpdateCurrentLoop</STRONG> (Thumb, 384 bytes, Stack size 40 bytes, simplefoc.o(i.FOC_UpdateCurrentLoop))
 <BR><BR>[Stack]<UL><LI>Max Depth = 92<LI>Call Chain = FOC_UpdateCurrentLoop &rArr; FOC_NormalizeAngle &rArr; __hardfp_fmodf &rArr; _frem &rArr; _float_epilogue
 </UL>
 <BR>[Calls]<UL><LI><a href="#[a0]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__hardfp_sqrtf
@@ -1340,7 +1340,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[87]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ADC_Measure_Init
 </UL>
 
-<P><STRONG><a name="[df]"></a>HAL_TIM_PeriodElapsedCallback</STRONG> (Thumb, 66 bytes, Stack size 8 bytes, blance.o(i.HAL_TIM_PeriodElapsedCallback))
+<P><STRONG><a name="[df]"></a>HAL_TIM_PeriodElapsedCallback</STRONG> (Thumb, 72 bytes, Stack size 8 bytes, blance.o(i.HAL_TIM_PeriodElapsedCallback))
 <BR><BR>[Stack]<UL><LI>Max Depth = 160<LI>Call Chain = HAL_TIM_PeriodElapsedCallback &rArr; AS5600_StartRead &rArr; HAL_I2C_Mem_Read_DMA &rArr; I2C_RequestMemoryRead &rArr; I2C_WaitOnMasterAddressFlagUntilTimeout
 </UL>
 <BR>[Calls]<UL><LI><a href="#[ec]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;JY60_GetRoll
@@ -1810,7 +1810,7 @@ Global Symbols
 <BR>[Called By]<UL><LI><a href="#[5b]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
 </UL>
 
-<P><STRONG><a name="[5b]"></a>main</STRONG> (Thumb, 226 bytes, Stack size 8 bytes, main.o(i.main))
+<P><STRONG><a name="[5b]"></a>main</STRONG> (Thumb, 274 bytes, Stack size 8 bytes, main.o(i.main))
 <BR><BR>[Stack]<UL><LI>Max Depth = 176<LI>Call Chain = main &rArr; MX_ADC3_Init &rArr; HAL_ADC_Init &rArr; HAL_ADC_MspInit &rArr; HAL_GPIO_Init
 </UL>
 <BR>[Calls]<UL><LI><a href="#[131]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;vofa_currentLoop
