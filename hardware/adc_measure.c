@@ -18,7 +18,7 @@ static float motor2_current_b = 0.0f;
 static float motor2_current_c = 0.0f;  // 新增C相滤波值
 
 
-#define FILTER_ALPHA 0.95f  
+#define FILTER_ALPHA 0.6f  
 
 void ADC_Measure_Init(void)
 {

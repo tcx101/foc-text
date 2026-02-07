@@ -4,6 +4,8 @@ vertical vpid;      // 直立环对象
 speed_pid spid;     // 速度环对象
 IMU imu;            // 陀螺仪对象
 float target_angle = 0.0f; // 目标角度（由速度环输出）
+float vel_left = 0.0f, vel_right = 0.0f; // 左右轮速度
+float vel = 0.0f; // 平均速度
 
 /**
  * @brief 直立环初始化
@@ -80,7 +82,7 @@ float speed_control(speed_pid *pid, float current_speed)
 void balance_vertical(vertical *pid, float angle, float gyro)
 {
     // PD控制计算目标电流
-    float err_iq = pid->kp * (angle - pid->target) + pid->kd * gyro;
+    float err_iq = pid->kp * (angle - pid->target+target_angle) + pid->kd * gyro;
     
     // 电流限幅
     if (err_iq > motor1.current_limit) {
@@ -108,12 +110,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         //1khz编码器加直立环
         AS5600_StartRead(&as5600_l); // 触发编码器读取
         AS5600_StartRead(&as5600_r); 
+        balance_vertical(&vpid, imu.roll, imu.gx); // 直立环控制
     }
     else if (htim == &htim5)
     {
         // 速度环（外环）+ 陀螺仪读取 
         imu.roll = JY60_GetRoll();
         imu.gx = JY60_GetGyroX();
+        vel_left = AS5600_GetVelRad(&as5600_l);
+        vel_right =-AS5600_GetVelRad(&as5600_r);
+        vel = (vel_left + vel_right) / 2.0f; // 取平均速度
+       target_angle = speed_control(&spid, vel); // 速度环控制
     }
 }
 

@@ -39,7 +39,7 @@ extern FOC_Motor_t motor1;
 extern FOC_Motor_t motor2;
 extern AS5600_t as5600_l;
 extern AS5600_t as5600_r;
-
+extern float vel_left, vel_right ; // 左右轮速度
 // 直立环初始化
 void balance_init(vertical *pid, float kp, float kd, float target);
 // 速度环初始化

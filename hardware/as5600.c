@@ -69,29 +69,30 @@ void AS5600_StartRead(AS5600_t *enc)
 static void calculate_velocity(AS5600_t *enc)
 {
     uint32_t now_us = HAL_GetTick() * 1000;
-    
+
     if (enc->last_time_us == 0) {
         enc->last_time_us = now_us;
         enc->last_angle = enc->mech_angle;
         return;
     }
-    
+
     float dt = (now_us - enc->last_time_us) * 1e-6f;
-    
-    if (dt > 0.001f && dt < 0.1f) {
+
+    // ⭐ 修改条件：降低最小时间阈值，允许1ms的采样周期
+    if (dt >= 0.0005f && dt < 0.1f) {  // 从 0.001f 改为 0.0005f
         float angle_diff = enc->mech_angle - enc->last_angle;
-        
+
         if (angle_diff > M_PI) {
             angle_diff -= TWO_PI;
         } else if (angle_diff < -M_PI) {
             angle_diff += TWO_PI;
         }
-        
+
         float vel = angle_diff / dt;
         enc->velocity_rads = 0.3f * vel + 0.7f * enc->velocity_rads;
         enc->velocity_rpm = enc->velocity_rads * 30.0f / M_PI;
     }
-    
+
     enc->last_angle = enc->mech_angle;
     enc->last_time_us = now_us;
 }
@@ -160,7 +161,6 @@ void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c)
     if (enc->elec_angle < 0.0f) {
         enc->elec_angle += TWO_PI;
     }
-
     calculate_velocity(enc);
 }
 
