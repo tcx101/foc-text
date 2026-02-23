@@ -114,16 +114,43 @@ foc-text/
 | **Current Sense** | ADC2/ADC3 | 6-channel current |
 | **Debug UART** | USART6 (PC6/PC7) | Serial output |
 
-#### 4. Calibration Procedure
+#### 4. Initialization & Calibration
+
+The initialization follows a strict 5-stage sequence to ensure proper startup:
 
 ```c
-// In main.c, the following calibration is performed automatically:
-1. ADC_Calibrate_Current_Sensors();  // Current sensor zero-point calibration
-2. FOC_CalibrateDirection(&motor1);  // Motor direction calibration
-3. FOC_CalibrateZeroOffset(&motor1); // Encoder zero-point calibration
+// Stage 1: Basic peripheral initialization
+JY60_Init();                    // IMU initialization
+AS5600_Init(&as5600_l, ...);    // Encoder initialization
+HAL_TIM_Base_Start_IT(&htim3);  // Start encoder scheduler
+
+// Stage 2: FOC motor object initialization
+FOC_Init(&motor1, 7);           // Initialize motor structure
+FOC_AttachDefaultHAL(&motor1);  // Bind hardware interfaces
+FOC_SetVoltageLimit(&motor1, 12.0f);
+FOC_SetCurrentLimit(&motor1, 2.0f);
+FOC_SetMode(&motor1, FOC_MODE_TORQUE);
+FOC_SetTarget(&motor1, 0.0f);   // Initial target = 0
+
+// Stage 3: Motor calibration
+FOC_CalibrateDirection(&motor1);  // Motor direction calibration
+FOC_CalibrateZeroOffset(&motor1); // Encoder zero-point calibration
+
+// Stage 4: Balance control initialization
+balance_init(&vpid, ...);       // Vertical PD controller
+speed_init(&spid, ...);         // Speed PI controller
+HAL_TIM_Base_Start_IT(&htim5);  // Start speed loop timer
+
+// Stage 5: ADC and current loop startup (LAST!)
+ADC_Measure_Init();             // Initialize PWM and timers (no interrupt yet)
+HAL_Delay(100);                 // Wait for ADC stabilization
+ADC_Calibrate_Current_Sensors(); // Calibrate current sensor zero-point
+ADC_Start_Interrupt();          // Start ADC interrupt, begin FOC control
 ```
 
-**⚠️ Important**: Keep the robot stationary during calibration!
+**⚠️ Important**: 
+- Keep the robot stationary during calibration!
+- ADC interrupt is started LAST to avoid triggering FOC during initialization
 
 #### 5. Parameter Tuning
 
@@ -159,9 +186,10 @@ FOC_SetCurrentLimit(&motor1, 1.8f); // Max 1.8A
 │  (AS5600)           Roll + Gyro           6-Channel              │
 │  Velocity              Angle                Sensing              │
 │                                                                   │
-│  TIM5 (500Hz) ────▶ Speed Control (Outer Loop)                  │
-│  TIM3 (1kHz)  ────▶ Balance Control (Middle Loop)               │
-│  TIM9 (20kHz) ────▶ FOC Current Control (Inner Loop)            │
+│  TIM5 (500Hz)     ────▶ Speed Control (Outer Loop)              │
+│  TIM3 (1kHz)      ────▶ Balance Control (Middle Loop)           │
+│  ADC Interrupt    ────▶ FOC Current Control (Inner Loop)        │
+│  (20kHz, HW Trig)       Triggered by TIM2/TIM4 TRGO             │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -170,6 +198,13 @@ FOC_SetCurrentLimit(&motor1, 1.8f); // Max 1.8A
 
 The FOC implementation follows the standard field-oriented control pipeline:
 
+**Hardware-Triggered ADC Sampling:**
+- TIM2/TIM4 generate 20kHz center-aligned PWM
+- CH4 output (TRGO) triggers ADC injected conversion at PWM center point
+- ADC samples at minimum current ripple for best accuracy
+- ADC interrupt fires upon conversion completion
+
+**FOC Control Loop (in ADC ISR):**
 1. **Current Sensing**: Read 3-phase currents via ADC (Ia, Ib, Ic)
 2. **Clarke Transform**: Convert to α-β stationary frame
 3. **Park Transform**: Convert to d-q rotating frame (aligned with rotor flux)
@@ -178,13 +213,21 @@ The FOC implementation follows the standard field-oriented control pipeline:
    - `iq_target = torque_command` (control torque)
 5. **Inverse Park**: Convert d-q voltages back to α-β
 6. **SVPWM**: Generate 3-phase PWM signals
+7. **Update PWM**: Apply new duty cycles to TIM2/TIM4
+
+**Key Advantages:**
+- Zero delay between sampling and control (executed in same ISR)
+- Synchronized with PWM for optimal current measurement
+- No separate timer needed for FOC loop
 
 ### 📈 Performance Metrics
 
-- **Current Loop (Inner)**: 20 kHz (TIM9 interrupt) - FOC control
+- **Current Loop (Inner)**: 20 kHz (ADC interrupt, hardware-triggered) - FOC control
 - **Balance Loop (Middle)**: 1 kHz (TIM3 interrupt) - PD control
 - **Velocity Loop (Outer)**: 500 Hz (TIM5 interrupt) - PI control
 - **Encoder Update Rate**: 1 kHz (I2C DMA)
+- **PWM Frequency**: 20 kHz (TIM2/TIM4, center-aligned mode)
+- **ADC Sampling**: Synchronized with PWM center point (minimum current ripple)
 - **Current Loop Bandwidth**: ~5 kHz
 - **Balance Recovery Time**: < 0.5s
 - **Max Tilt Angle**: ±30°
@@ -340,16 +383,43 @@ foc-text/
 | **电流采样** | ADC2/ADC3 | 6 路电流 |
 | **调试串口** | USART6 (PC6/PC7) | 串口输出 |
 
-#### 4. 校准流程
+#### 4. 初始化与校准
+
+初始化遵循严格的 5 阶段顺序以确保正确启动：
 
 ```c
-// 在 main.c 中，以下校准会自动执行：
-1. ADC_Calibrate_Current_Sensors();  // 电流传感器零点校准
-2. FOC_CalibrateDirection(&motor1);  // 电机方向校准
-3. FOC_CalibrateZeroOffset(&motor1); // 编码器零点校准
+// 阶段 1：基础外设初始化
+JY60_Init();                    // IMU 初始化
+AS5600_Init(&as5600_l, ...);    // 编码器初始化
+HAL_TIM_Base_Start_IT(&htim3);  // 启动编码器调度定时器
+
+// 阶段 2：FOC 电机对象初始化
+FOC_Init(&motor1, 7);           // 初始化电机结构体
+FOC_AttachDefaultHAL(&motor1);  // 绑定硬件接口
+FOC_SetVoltageLimit(&motor1, 12.0f);
+FOC_SetCurrentLimit(&motor1, 2.0f);
+FOC_SetMode(&motor1, FOC_MODE_TORQUE);
+FOC_SetTarget(&motor1, 0.0f);   // 初始目标 = 0
+
+// 阶段 3：电机校准
+FOC_CalibrateDirection(&motor1);  // 电机方向校准
+FOC_CalibrateZeroOffset(&motor1); // 编码器零点校准
+
+// 阶段 4：平衡控制初始化
+balance_init(&vpid, ...);       // 直立 PD 控制器
+speed_init(&spid, ...);         // 速度 PI 控制器
+HAL_TIM_Base_Start_IT(&htim5);  // 启动速度环定时器
+
+// 阶段 5：ADC 和电流环启动（最后！）
+ADC_Measure_Init();             // 初始化 PWM 和定时器（尚未启动中断）
+HAL_Delay(100);                 // 等待 ADC 稳定
+ADC_Calibrate_Current_Sensors(); // 校准电流传感器零点
+ADC_Start_Interrupt();          // 启动 ADC 中断，开始 FOC 控制
 ```
 
-**⚠️ 重要**：校准期间请保持小车静止！
+**⚠️ 重要**：
+- 校准期间请保持小车静止！
+- ADC 中断最后启动，避免初始化期间触发 FOC 控制
 
 #### 5. 参数调整
 
@@ -385,9 +455,10 @@ FOC_SetCurrentLimit(&motor1, 1.8f); // 最大 1.8A
 │  (AS5600)           横滚角 + 角速度        6 路采样               │
 │   速度反馈              姿态反馈              电流反馈            │
 │                                                                 │
-│  TIM5 (500Hz) ────▶ 速度控制（外环）                             │
-│  TIM3 (1kHz)  ────▶ 平衡控制（中环）                             │
-│  TIM9 (20kHz) ────▶ FOC 电流控制（内环）                         │
+│  TIM5 (500Hz)     ────▶ 速度控制（外环）                         │
+│  TIM3 (1kHz)      ────▶ 平衡控制（中环）                         │
+│  ADC 中断         ────▶ FOC 电流控制（内环）                     │
+│  (20kHz, 硬件触发)      由 TIM2/TIM4 TRGO 触发                   │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -396,6 +467,13 @@ FOC_SetCurrentLimit(&motor1, 1.8f); // 最大 1.8A
 
 FOC 实现遵循标准的磁场定向控制流程：
 
+**硬件触发 ADC 采样：**
+- TIM2/TIM4 生成 20kHz 中心对齐 PWM
+- CH4 输出（TRGO）在 PWM 中心点触发 ADC 注入转换
+- ADC 在电流纹波最小处采样，精度最高
+- ADC 转换完成后触发中断
+
+**FOC 控制回路（在 ADC 中断中）：**
 1. **电流采样**：通过 ADC 读取三相电流（Ia, Ib, Ic）
 2. **Clarke 变换**：转换到 α-β 静止坐标系
 3. **Park 变换**：转换到 d-q 旋转坐标系（与转子磁场对齐）
@@ -404,13 +482,21 @@ FOC 实现遵循标准的磁场定向控制流程：
    - `iq_target = torque_command`（控制转矩）
 5. **反 Park 变换**：将 d-q 电压转换回 α-β
 6. **SVPWM**：生成三相 PWM 信号
+7. **更新 PWM**：将新的占空比应用到 TIM2/TIM4
+
+**关键优势：**
+- 采样和控制零延迟（在同一中断中执行）
+- 与 PWM 同步，电流测量最优
+- 无需单独的定时器用于 FOC 回路
 
 ### 📈 性能指标
 
-- **电流环（内环）**：20 kHz（TIM9 中断）- FOC 控制
+- **电流环（内环）**：20 kHz（ADC 中断，硬件触发）- FOC 控制
 - **平衡环（中环）**：1 kHz（TIM3 中断）- PD 控制
 - **速度环（外环）**：500 Hz（TIM5 中断）- PI 控制
 - **编码器更新率**：1 kHz（I2C DMA）
+- **PWM 频率**：20 kHz（TIM2/TIM4，中心对齐模式）
+- **ADC 采样**：与 PWM 中心点同步（电流纹波最小）
 - **电流环带宽**：~5 kHz
 - **平衡恢复时间**：< 0.5s
 - **最大倾角**：±30°
