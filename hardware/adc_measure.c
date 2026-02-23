@@ -2,7 +2,7 @@
 #include "adc_measure.h"
 #include <string.h>
 #include <stdio.h>
-
+#include "Allfile.h"
 // 零点偏移值（支持浮点数，更精确）
 static float motor1_offset_a = 0.0f;
 static float motor1_offset_b = 0.0f;
@@ -18,11 +18,16 @@ static float motor2_current_b = 0.0f;
 static float motor2_current_c = 0.0f;  // 新增C相滤波值
 
 
-#define FILTER_ALPHA 0.6f  
+#define FILTER_ALPHA 0.6f  //低通滤波系数
 
+/**
+ * @brief 初始化ADC测量模块（不启动ADC中断）
+ * @note 此函数只初始化PWM和定时器，不启动ADC中断
+ *       ADC中断需要在校准完成后通过ADC_Start_Interrupt()启动
+ */
 void ADC_Measure_Init(void)
 {
-  // 启动TIM2的PWM输出通道（CH1, CH2, CH3）
+  // 启动TIM2的PWM输出通道（CH1, CH2, CH3），占空比初始化为0
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_3, 0);
@@ -30,7 +35,7 @@ void ADC_Measure_Init(void)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_3);
 
-  // 启动TIM4的PWM输出通道（CH1, CH2, CH3）
+  // 启动TIM4的PWM输出通道（CH1, CH2, CH3），占空比初始化为0
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_1, 0);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
@@ -44,15 +49,29 @@ void ADC_Measure_Init(void)
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_4);  // 启动CH4用于产生TRGO
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);  // 启动CH4用于产生TRGO
 
-  // 启动ADC注入模式（硬件触发 - 使用TRGO）
-  HAL_ADCEx_InjectedStart_IT(&hadc2);  // ADC2注入模式，TIM2_TRGO触发
-  HAL_ADCEx_InjectedStart_IT(&hadc3);  // ADC3注入模式，TIM4_TRGO触发
-
-  // 启动定时器
+  // 启动定时器（开始产生PWM和TRGO信号）
   HAL_TIM_Base_Start(&htim2);
   HAL_TIM_Base_Start(&htim4);
+  
+  // ⚠️ 注意：此处不启动ADC中断，等待校准完成后再启动
 }
 
+/**
+ * @brief 启动ADC中断
+ * @note 在校准完成后调用此函数，开始FOC电流环控制
+ */
+void ADC_Start_Interrupt(void)
+{
+  // 启动ADC注入模式中断（硬件触发 - 使用TRGO）
+  HAL_ADCEx_InjectedStart_IT(&hadc2);  // ADC2注入模式，TIM2_TRGO触发
+  HAL_ADCEx_InjectedStart_IT(&hadc3);  // ADC3注入模式，TIM4_TRGO触发
+}
+
+/**
+ * @brief 校准电流传感器零点
+ * @note 此函数应在ADC_Measure_Init()之后、ADC_Start_Interrupt()之前调用
+ *       确保在校准期间ADC中断未启动，避免触发FOC控制
+ */
 void ADC_Calibrate_Current_Sensors(void)
 {
   float sum1a = 0.0f, sum1b = 0.0f, sum2a = 0.0f, sum2b = 0.0f;
@@ -65,10 +84,10 @@ void ADC_Calibrate_Current_Sensors(void)
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_2, 0);
   __HAL_TIM_SET_COMPARE(&htim4, TIM_CHANNEL_3, 0);
 
-  HAL_Delay(100);  // 增加稳定时间
+  HAL_Delay(100);  // 等待电流稳定
 
   // 采样2000次求平均（提高精度）
-  // 注入模式下，直接读取注入数据寄存器
+  // 注意：此时ADC中断未启动，直接读取注入数据寄存器是安全的
   for (int i = 0; i < 2000; i++)
   {
     sum1a += (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1);
@@ -109,6 +128,7 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
     motor1_current_a += FILTER_ALPHA * (ia - motor1_current_a);
     motor1_current_b += FILTER_ALPHA * (ib - motor1_current_b);
     motor1_current_c += FILTER_ALPHA * (ic - motor1_current_c);
+    FOC_UpdateCurrentLoop(&motor1);
   }
   else if (hadc->Instance == ADC3)
   {
@@ -125,6 +145,7 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
     motor2_current_a += FILTER_ALPHA * (ia - motor2_current_a);
     motor2_current_b += FILTER_ALPHA * (ib - motor2_current_b);
     motor2_current_c += FILTER_ALPHA * (ic - motor2_current_c);
+    FOC_UpdateCurrentLoop(&motor2);
   }
 }
 

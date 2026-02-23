@@ -20,8 +20,9 @@
 /* 函数接口 -------------------------------------------------------------------*/
 
 // 初始化和校准
-void ADC_Measure_Init(void);
-void ADC_Calibrate_Current_Sensors(void);
+void ADC_Measure_Init(void);              // 初始化PWM和定时器（不启动ADC中断）
+void ADC_Calibrate_Current_Sensors(void); // 校准电流传感器零点
+void ADC_Start_Interrupt(void);           // 启动ADC中断
 
 // 电机1电流获取（新接口）
 float ADC_Get_Motor1_Current_A(void);

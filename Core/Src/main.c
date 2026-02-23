@@ -66,9 +66,9 @@ void SystemClock_Config(void);
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
@@ -104,41 +104,62 @@ int main(void)
   MX_USART6_UART_Init();
   MX_TIM3_Init();
   MX_UART4_Init();
-  MX_TIM9_Init();
   MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
+  // ============================================================================
+  // 第一阶段：基础外设初始化（不涉及控制）
+  // ============================================================================
   JY60_Init();
-  ADC_Measure_Init(); /* 初始化ADC */
-  AS5600_Init(&as5600_l, &hi2c1, 7); // 初始化左轮编码器
-  AS5600_Init(&as5600_r, &hi2c3, 7); // 初始化右轮编码器
-  HAL_TIM_Base_Start_IT(&htim3);     // 启动编码器调度定时器，确保校准时角度连续更新
-  ADC_Calibrate_Current_Sensors(); /* 校准电流传感器和电机零点 */
-  FOC_Init(&motor1, 7); // 7对极
-  FOC_Init(&motor2, 7); // 7对极
-  balance_init(&vpid,0.07f,0.008f,-28.0f); // 直立环初始化
-  //speed_init(&spid,-0.5f,0.0f,0.0f); // 速度环初始化
-  FOC_AttachDefaultHAL(&motor1);//绑定各外设
-  FOC_AttachMotor2HAL(&motor2); // 绑定各外设
-  FOC_SetVoltageLimit(&motor1, 12.0f);// 12V供电
-  FOC_CalibrateDirection(&motor1);//方向校准
-  FOC_CalibrateZeroOffset(&motor1);//零点校准
-  FOC_SetCurrentLimit(&motor1, 1.8f);//设定电流限制
-  FOC_SetMode(&motor1, FOC_MODE_TORQUE);//转矩模式
-  FOC_SetVoltageLimit(&motor2, 12.0f);// 12V供电
-  FOC_CalibrateDirection(&motor2);//方向校准
-  FOC_CalibrateZeroOffset(&motor2);//零点校准
-  FOC_SetCurrentLimit(&motor2, 1.8f);//设定电流限制
-  FOC_SetMode(&motor2, FOC_MODE_TORQUE);//转矩模式
-  HAL_TIM_Base_Start_IT(&htim5);
-  HAL_TIM_Base_Start_IT(&htim9);  
+  AS5600_Init(&as5600_l, &hi2c1, 7);           // 初始化左轮编码器
+  AS5600_Init(&as5600_r, &hi2c3, 7);           // 初始化右轮编码器
+  HAL_TIM_Base_Start_IT(&htim3);               // 启动编码器调度定时器
+
+  // ============================================================================
+  // 第二阶段：FOC电机对象初始化（不启动控制）
+  // ============================================================================
+  FOC_Init(&motor1, 7);                        // 7对极
+  FOC_Init(&motor2, 7);                        // 7对极
+  FOC_AttachDefaultHAL(&motor1);               // 绑定各外设
+  FOC_AttachMotor2HAL(&motor2);                // 绑定各外设
+  FOC_SetVoltageLimit(&motor1, 12.0f);         // 12V供电
+  FOC_SetVoltageLimit(&motor2, 12.0f);         // 12V供电
+  FOC_SetCurrentLimit(&motor1, 2.0f);          // 设定电流限制
+  FOC_SetCurrentLimit(&motor2, 2.0f);          // 设定电流限制
+  FOC_SetMode(&motor1, FOC_MODE_TORQUE);       // 转矩模式
+  FOC_SetMode(&motor2, FOC_MODE_TORQUE);       // 转矩模式
+  FOC_SetTarget(&motor1, 0.0f);                // 初始目标电流为0
+  FOC_SetTarget(&motor2, 0.0f);                // 初始目标电流为0
+
+  // ============================================================================
+  // 第三阶段：电机校准（需要转动电机，但不需要电流环）
+  // ============================================================================
+  FOC_CalibrateDirection(&motor1);             // 方向校准
+  FOC_CalibrateZeroOffset(&motor1);            // 零点校准
+  FOC_CalibrateDirection(&motor2);             // 方向校准
+  FOC_CalibrateZeroOffset(&motor2);            // 零点校准
+
+  // ============================================================================
+  // 第四阶段：平衡控制初始化
+  // ============================================================================
+  balance_init(&vpid, 0.065f, 0.006f, -28.1f); // 直立环初始化
+  speed_init(&spid, -0.1f, -0.0f, 0.0f);       // 速度环初始化
+  HAL_TIM_Base_Start_IT(&htim5);               // 启动速度环定时器
+
+  // ============================================================================
+  // 第五阶段：ADC和电流环启动（最后启动，避免干扰前面的初始化）
+  // ============================================================================
+  ADC_Measure_Init();                          // 初始化PWM和定时器，但不启动ADC中断
+  HAL_Delay(100);                              // 等待ADC稳定
+  ADC_Calibrate_Current_Sensors();             // 校准电流传感器零点
+  ADC_Start_Interrupt();                       // 启动ADC中断，开始FOC电流环控制
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-  
-    printf("angle:%.3f,%.3f,%.3f,%.3f\n",imu.roll,imu.gx,vel_left,vel_right);
+
+    printf("angle:%.3f,%.3f,%.3f,%.3f\n", target_angle, vel, vel_left, vel_right);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -147,22 +168,22 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage
-  */
+   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
+   * in the RCC_OscInitTypeDef structure.
+   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
@@ -177,9 +198,8 @@ void SystemClock_Config(void)
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
@@ -196,9 +216,9 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -212,12 +232,12 @@ void Error_Handler(void)
 }
 #ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */

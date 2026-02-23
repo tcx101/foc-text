@@ -73,7 +73,7 @@ float speed_control(speed_pid *pid, float current_speed)
 }
 
 /**
- * @brief 直立环控制（中环）
+ * @brief 直立环控制（中环）- 角速度前馈
  * @param pid 直立环PD控制器
  * @param angle 当前角度（度）
  * @param gyro 当前角速度（度/s）
@@ -82,14 +82,16 @@ float speed_control(speed_pid *pid, float current_speed)
 void balance_vertical(vertical *pid, float angle, float gyro)
 {
     // PD控制计算目标电流
-    float err_iq = pid->kp * (angle - pid->target+target_angle) + pid->kd * gyro;
-    
+    // P项：角度误差
+    // D项：陀螺仪角速度（前馈控制，加快响应）
+    float err_iq = pid->kp * (angle - (pid->target + target_angle)) + pid->kd * gyro;
     // 电流限幅
     if (err_iq > motor1.current_limit) {
         err_iq = motor1.current_limit;
     } else if (err_iq < -motor1.current_limit) {
         err_iq = -motor1.current_limit;
     }
+
     // 设置目标电流（左右电机反向）
     FOC_SetTarget(&motor1, err_iq);
     FOC_SetTarget(&motor2, -err_iq);
@@ -100,27 +102,22 @@ void balance_vertical(vertical *pid, float angle, float gyro)
  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim == &htim9)
-    {
-        FOC_UpdateCurrentLoop(&motor1);
-        FOC_UpdateCurrentLoop(&motor2);
-    }
-    else if (htim == &htim3)
+    if (htim == &htim3)
     {
         //1khz编码器加直立环
+        imu.roll = JY60_GetRoll();
+        imu.gx = JY60_GetGyroX();
         AS5600_StartRead(&as5600_l); // 触发编码器读取
-        AS5600_StartRead(&as5600_r); 
+        AS5600_StartRead(&as5600_r);
         balance_vertical(&vpid, imu.roll, imu.gx); // 直立环控制
     }
     else if (htim == &htim5)
     {
-        // 速度环（外环）+ 陀螺仪读取 
-        imu.roll = JY60_GetRoll();
-        imu.gx = JY60_GetGyroX();
+        // 速度环（外环）+ 陀螺仪读取
         vel_left = AS5600_GetVelRad(&as5600_l);
         vel_right =-AS5600_GetVelRad(&as5600_r);
         vel = (vel_left + vel_right) / 2.0f; // 取平均速度
-       target_angle = speed_control(&spid, vel); // 速度环控制
+        target_angle = speed_control(&spid, vel); // 速度环控制
     }
 }
 
