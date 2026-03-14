@@ -418,9 +418,9 @@ void FOC_CalibrateZeroOffset(FOC_Motor_t *motor)
     // 归一化到[0, 2π)
     motor->elec_zero_offset = FOC_NormalizeAngle(motor->elec_zero_offset);
 
-    // 同步到AS5600结构体（用于预计算电角度）
-    as5600_l.zero_elec_offset = motor->elec_zero_offset;
-    as5600_l.sensor_direction = motor->sensor_direction;
+    // ⚠️ 注意：这里需要根据是哪个电机来同步到对应的AS5600结构体
+    // 暂时注释掉，因为无法在这里判断是motor1还是motor2
+    // 建议在FOC_AttachDefaultHAL中设置，或者在main.c中手动同步
 
     // 阶段5：电压斜坡下降，平滑释放
     for (int step = 100; step >= 0; step--) {
@@ -486,7 +486,7 @@ void FOC_UpdateCurrentLoop(FOC_Motor_t *motor)
     // ========== 步骤4：电流环PID控制 ==========
 
     // 目标电流
-    float target_id = 0.0f;  // d轴电流目标始终为0（最大转矩控制）
+    float target_id = 0.000f;  // d轴电流目标始终为0（最大转矩控制）
     float target_iq = motor->target;  // q轴电流目标
 
     // 限幅

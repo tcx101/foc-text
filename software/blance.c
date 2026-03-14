@@ -109,7 +109,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
         imu.gx = JY60_GetGyroX();
         AS5600_StartRead(&as5600_l); // 触发编码器读取
         AS5600_StartRead(&as5600_r);
-        balance_vertical(&vpid, imu.roll, imu.gx); // 直立环控制
+       // balance_vertical(&vpid, imu.roll, imu.gx); // 直立环控制
     }
     else if (htim == &htim5)
     {

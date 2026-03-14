@@ -18,12 +18,12 @@ static float motor2_current_b = 0.0f;
 static float motor2_current_c = 0.0f;  // 新增C相滤波值
 
 
-#define FILTER_ALPHA 0.6f  //低通滤波系数
+#define FILTER_ALPHA 0.5f  //低通滤波系数
 
 /**
- * @brief 初始化ADC测量模块（不启动ADC中断）
- * @note 此函数只初始化PWM和定时器，不启动ADC中断
- *       ADC中断需要在校准完成后通过ADC_Start_Interrupt()启动
+ * @brief 初始化ADC测量模块（启动ADC转换但不启动中断）
+ * @note 此函数初始化PWM、定时器，并启动ADC注入转换（用于校准采样）
+ *       但不启动ADC中断，避免在校准期间触发FOC控制
  */
 void ADC_Measure_Init(void)
 {
@@ -52,16 +52,21 @@ void ADC_Measure_Init(void)
   // 启动定时器（开始产生PWM和TRGO信号）
   HAL_TIM_Base_Start(&htim2);
   HAL_TIM_Base_Start(&htim4);
-  
-  // ⚠️ 注意：此处不启动ADC中断，等待校准完成后再启动
+  // 这样校准时可以读取ADC数据，但不会触发FOC控制
+  HAL_ADCEx_InjectedStart(&hadc2);  // 启动ADC2注入转换（无中断）
+  HAL_ADCEx_InjectedStart(&hadc3);  // 启动ADC3注入转换（无中断）
 }
 
 /**
  * @brief 启动ADC中断
  * @note 在校准完成后调用此函数，开始FOC电流环控制
+ *       先停止无中断的ADC转换，再启动带中断的ADC转换
  */
 void ADC_Start_Interrupt(void)
 {
+  // ⭐ 关键修复：先停止无中断的ADC转换
+  HAL_ADCEx_InjectedStop(&hadc2);
+  HAL_ADCEx_InjectedStop(&hadc3);
   // 启动ADC注入模式中断（硬件触发 - 使用TRGO）
   HAL_ADCEx_InjectedStart_IT(&hadc2);  // ADC2注入模式，TIM2_TRGO触发
   HAL_ADCEx_InjectedStart_IT(&hadc3);  // ADC3注入模式，TIM4_TRGO触发
@@ -103,15 +108,29 @@ void ADC_Calibrate_Current_Sensors(void)
   motor2_offset_b = sum2b / 2000.0f;
 }
 
+// ADC采样+电流环分频计数器（每 SAMPLE_DIVIDER 次ADC触发处理一次，其余直接跳过）
+#define SAMPLE_DIVIDER  2         // 20kHz / 2 = 10kHz 实际采样+电流环
+static uint8_t motor1_loop_cnt = 0;
+static uint8_t motor2_loop_cnt = 0;
+
 /**
  * @brief ADC注入转换完成回调（注入模式）
- * @note 注入模式下，硬件触发后自动转换，转换完成后触发此中断
- *       关键：先计算C相，再对三相同时滤波，避免C相延迟
+ * @note PWM/ADC硬件触发频率 20kHz，通过软件分频实现 10kHz 实际采样+电流环控制。
+ *       奇数次中断直接 return，不读取ADC、不滤波、不执行电流环，
+ *       等效于 ADC采样频率 = 电流环频率 = 20kHz / SAMPLE_DIVIDER。
  */
 void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
   if (hadc->Instance == ADC2)
   {
+    // 分频门控：未到采样时刻直接返回，不做任何处理
+    motor1_loop_cnt++;
+    if (motor1_loop_cnt < SAMPLE_DIVIDER)
+    {
+      return;
+    }
+    motor1_loop_cnt = 0;
+
     // 读取注入通道的ADC值并去零点（使用浮点数提高精度）
     // ⭐ 交换RANK_1和RANK_2的读取，修正A、B相反接问题
     float adc_a = (float)HAL_ADCEx_InjectedGetValue(&hadc2, ADC_INJECTED_RANK_1) - motor1_offset_a;
@@ -120,11 +139,9 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
     // 转换为电流（A）
     float ia = adc_a * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);
     float ib = adc_b * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);
-
-    // ⭐ 关键修复：先用原始电流计算C相
+    // ⭐ 先用原始电流计算C相
     float ic = -(ia + ib);
-
-    // 然后对三相同时滤波，保证相位一致
+    // 三相同时滤波，保证相位一致
     motor1_current_a += FILTER_ALPHA * (ia - motor1_current_a);
     motor1_current_b += FILTER_ALPHA * (ib - motor1_current_b);
     motor1_current_c += FILTER_ALPHA * (ic - motor1_current_c);
@@ -132,16 +149,22 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
   }
   else if (hadc->Instance == ADC3)
   {
+    // 分频门控：未到采样时刻直接返回
+    motor2_loop_cnt++;
+    if (motor2_loop_cnt < SAMPLE_DIVIDER)
+    {
+      return;
+    }
+    motor2_loop_cnt = 0;
+
     float adc_a = (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_1) - motor2_offset_a;
     float adc_b = (float)HAL_ADCEx_InjectedGetValue(&hadc3, ADC_INJECTED_RANK_2) - motor2_offset_b;
-
     // 转换为电流（A）
     float ia = adc_a * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);
     float ib = adc_b * (ADC_VREF / ADC_RESOLUTION) / (CURRENT_SENSOR_GAIN * SHUNT_RESISTANCE);
-
-    // ⭐ 关键修复：先用原始电流计算C相
+    // ⭐ 先用原始电流计算C相
     float ic = -(ia + ib);
-    // 然后对三相同时滤波
+    // 三相同时滤波
     motor2_current_a += FILTER_ALPHA * (ia - motor2_current_a);
     motor2_current_b += FILTER_ALPHA * (ib - motor2_current_b);
     motor2_current_c += FILTER_ALPHA * (ic - motor2_current_c);
