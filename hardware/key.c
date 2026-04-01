@@ -36,10 +36,8 @@ void key_currentLoop(void){
     static uint32_t last_time = 0;
     uint32_t time = HAL_GetTick();
     Key.key_state[0] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_12); // 读取按键1状态
-    Key.key_state[1] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // 读取按键2状态
-    // 按键1按下 - 增加目标电流
-    if (Key.key_state[0] == GPIO_PIN_RESET && Key.key_last[0] == GPIO_PIN_SET && (time-last_time) > 150) 
-    {
+    Key.key_state[1] = HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_13); // 读取按键2状态    
+  if (Key.key_state[0] == GPIO_PIN_RESET && Key.key_last[0] == GPIO_PIN_SET && (time-last_time) > 150){
         // 小功率电机使用更精细的步进：0.02A (原来0.05A)
         iq_target +=0.02f;  
         if (iq_target > 1.5f) iq_target = 1.5f; // 限制最大电流为 1.8A (电机最大电流的90%)

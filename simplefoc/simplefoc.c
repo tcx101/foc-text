@@ -486,7 +486,7 @@ void FOC_UpdateCurrentLoop(FOC_Motor_t *motor)
     // ========== 步骤4：电流环PID控制 ==========
 
     // 目标电流
-    float target_id = 0.000f;  // d轴电流目标始终为0（最大转矩控制）
+    float target_id = 0.0000f;  // d轴电流目标始终为0（最大转矩控制）
     float target_iq = motor->target;  // q轴电流目标
 
     // 限幅
@@ -496,8 +496,8 @@ void FOC_UpdateCurrentLoop(FOC_Motor_t *motor)
     float error_id = target_id - motor->id;
     float error_iq = target_iq - motor->iq;
 
-    // PID控制（采样周期 = 1/20kHz = 50us = 0.00005s）
-    float dt = 0.00005f;
+    // PID控制（采样周期 = 1/10kHz = 100us = 0.0001s）
+    float dt = 0.0001f;
     motor->vd = FOC_PID_Update(&motor->pid_id, error_id, dt);
     motor->vq = FOC_PID_Update(&motor->pid_iq, error_iq, dt);
     // 电压限幅（圆形限幅）
