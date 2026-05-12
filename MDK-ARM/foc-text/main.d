@@ -1,64 +1,36 @@
-foc-text\main.o: ../Core/Src/main.c
-foc-text\main.o: ../Core/Inc/main.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h
-foc-text\main.o: ../Core/Inc/stm32f4xx_hal_conf.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_def.h
-foc-text\main.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h
-foc-text\main.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/stm32f407xx.h
-foc-text\main.o: ../Drivers/CMSIS/Include/core_cm4.h
-foc-text\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
-foc-text\main.o: ../Drivers/CMSIS/Include/cmsis_version.h
-foc-text\main.o: ../Drivers/CMSIS/Include/cmsis_compiler.h
-foc-text\main.o: ../Drivers/CMSIS/Include/cmsis_armcc.h
-foc-text\main.o: ../Drivers/CMSIS/Include/mpu_armv7.h
-foc-text\main.o: ../Drivers/CMSIS/Device/ST/STM32F4xx/Include/system_stm32f4xx.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy/stm32_hal_legacy.h
-foc-text\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rcc_ex.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_gpio_ex.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_i2c_ex.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
-foc-text\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
-foc-text\main.o: ../Core/Inc/adc.h
-foc-text\main.o: ../Core/Inc/dma.h
-foc-text\main.o: ../Core/Inc/i2c.h
-foc-text\main.o: ../Core/Inc/tim.h
-foc-text\main.o: ../Core/Inc/usart.h
-foc-text\main.o: ../Core/Inc/gpio.h
-foc-text\main.o: ../software/Allfile.h
-foc-text\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
-foc-text\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
-foc-text\main.o: ../hardware/lcd.h
-foc-text\main.o: ../hardware/serial.h
-foc-text\main.o: ../hardware/lcd_init.h
-foc-text\main.o: ../hardware/as5600.h
-foc-text\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
-foc-text\main.o: ../hardware/adc_measure.h
-foc-text\main.o: ../hardware/key.h
-foc-text\main.o: ../software/Allfile.h
-foc-text\main.o: ../hardware/key.h
-foc-text\main.o: ../simplefoc/simplefoc.h
-foc-text\main.o: ../software/vofa.h
-foc-text\main.o: ../software/Allfile.h
-foc-text\main.o: ../software/vofa.h
-foc-text\main.o: ../hardware/jy60.h
-foc-text\main.o: ../software/blance.h
-foc-text\main.o: ../software/Allfile.h
-foc-text\main.o: ../software/blance.h
+foc-text/main.o: ..\Core\Src\main.c ..\Core\Inc\main.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal.h \
+  ..\Core\Inc\stm32f4xx_hal_conf.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_rcc.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_def.h \
+  ..\Drivers\CMSIS\Device\ST\STM32F4xx\Include\stm32f4xx.h \
+  ..\Drivers\CMSIS\Device\ST\STM32F4xx\Include\stm32f407xx.h \
+  ..\Drivers\CMSIS\Include\core_cm4.h \
+  ..\Drivers\CMSIS\Device\ST\STM32F4xx\Include\system_stm32f4xx.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\Legacy\stm32_hal_legacy.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_rcc_ex.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_gpio.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_gpio_ex.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_exti.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_dma.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_dma_ex.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_cortex.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_adc.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_ll_adc.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_adc_ex.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_flash.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_flash_ex.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_flash_ramfunc.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_i2c.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_i2c_ex.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_pwr.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_pwr_ex.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_tim.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_tim_ex.h \
+  ..\Drivers\STM32F4xx_HAL_Driver\Inc\stm32f4xx_hal_uart.h \
+  ..\Core\Inc\adc.h ..\Core\Inc\dma.h ..\Core\Inc\i2c.h \
+  ..\Core\Inc\tim.h ..\Core\Inc\usart.h ..\Core\Inc\gpio.h \
+  ..\software\Allfile.h ..\hardware\lcd.h ..\hardware\serial.h \
+  ..\hardware\lcd_init.h ..\hardware\as5600.h ..\hardware\adc_measure.h \
+  ..\hardware\key.h ..\simplefoc\simplefoc.h ..\software\vofa.h \
+  ..\hardware\jy60.h ..\software\blance.h
